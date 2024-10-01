@@ -1,0 +1,1 @@
+crystal_async_networking();
