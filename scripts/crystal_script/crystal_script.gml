@@ -562,7 +562,7 @@ function crystal_step() {
                 _buf_write_string(b, r);
                 _buf_send(b);
                 global.__current_room = r;
-                var player_keys = struct_get_names(global.__players);
+                player_keys = struct_get_names(global.__players);
                 for (var i = 0; i < array_length(player_keys); i++) {
                     var player = global.__players[player_keys[i]];
                     if player.room != r
@@ -597,7 +597,7 @@ function crystal_step() {
                         }
                     }
                 }
-                global.__syncs_remove = [];
+                array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
                 if insts_iter > 0 {
                     var tb = _buf_new();
                     _buf_write_u8(tb, 13);
@@ -620,7 +620,7 @@ function crystal_step() {
                     _buf_send(b);
                     global.__syncs[s.slot].to_sync = [];
                 }
-                global.__new_sync_queue = [];
+                array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
             }
             if array_length(global.__update_vari) > 0 && global.__is_connected {
                 var b = _buf_new();
@@ -634,7 +634,7 @@ function crystal_step() {
                     else
                         _buf_write_value(b, u.value);
                 }
-                global.__update_vari = [];
+                array_delete(global.__update_vari, 0, array_length(global.__update_vari));
             }
         }
     }
@@ -661,7 +661,7 @@ function crystal_async_networking() {
                         for (var i = 0; i < array_length(global.__buffered_data); i++) {
                             buffer_delete(global.__buffered_data[i]);
                         }
-                        global.__buffered_data = [];
+                        array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
                     }
                     break;
                 case network_type_data:
@@ -910,7 +910,7 @@ function _handle_packet(buf) {
                 global.__script_register(code);
             break;
         case 1: // Login
-            var code = _buf_read_u8(buf);
+            code = _buf_read_u8(buf);
             var token = "";
             switch code {
                 case LoginResult.OK:
@@ -948,7 +948,7 @@ function _handle_packet(buf) {
             player.variables = variables;
             player.syncs = syncs;
             player.room = _room;
-            global.__players[_player_id] = player;
+            global.__players[$ _player_id] = player;
             break;
         case 3: // User logged out
             array_push(global.__players_logout, _buf_read_leb_u64(buf));
@@ -961,23 +961,23 @@ function _handle_packet(buf) {
             global.__game_version = _buf_read_f64(buf);
             break;
         case 5: // P2P
-            var _player_id = _buf_read_leb_u64(buf);
+            _player_id = _buf_read_leb_u64(buf);
             var message_id = _buf_read_u16(buf);
             var arr = _buf_read_array(buf);
             if global.__script_p2p != undefined
                 global.__script_p2p(message_id, _player_id, arr);
             break;
         case 6: // Sync player variable
-            var _player_id = _buf_read_leb_u64(buf);
+            _player_id = _buf_read_leb_u64(buf);
             _iter_missing_data(_player_id);
             var amount = _buf_read_leb_u64(buf);
             for (var i = 0; i < amount; i++) {
-                var name = _buf_read_string(buf);
+                name = _buf_read_string(buf);
                 var remove_vari = _buf_read_u8(buf) == 0xff;
                 _buf_seek_relative(buf, -1);
                 var value = _buf_read_value(buf);
                 if struct_exists(global.__players, _player_id) {
-                    var player = global.__players[$ _player_id];
+                    player = global.__players[$ _player_id];
                     if remove_vari
                         struct_remove(player.variables, name);
                     else
@@ -1013,7 +1013,7 @@ function _handle_packet(buf) {
             global.__players_queue = {};
             break;
         case 9: // Game ini write
-            var name = _buf_read_string(buf);
+            name = _buf_read_string(buf);
             var remove_vari = _buf_read_u8(buf) == 0xff;
             _buf_seek_relative(buf, -1);
             var vari = _buf_read_value(buf);
@@ -1023,14 +1023,14 @@ function _handle_packet(buf) {
                 global.__game_save[$ name] = vari;
             break;
         case 10: // New sync
-            var _player_id = _buf_read_leb_u64(buf);
+            _player_id = _buf_read_leb_u64(buf);
             var slot = _buf_read_u16(buf);
             var kind = _buf_read_i16(buf);
             var type = _buf_read_u8(buf);
-            var variables = _buf_read_struct(buf);
+            variables = _buf_read_struct(buf);
             if struct_exists(global.__players, _player_id) {
                 _iter_missing_data(_player_id);
-                var player = global.__players[$ _player_id];
+                player = global.__players[$ _player_id];
                 while array_length(player.syncs) <= slot
                     array_push(player.syncs, undefined);
                 var sync = _create_sync();
@@ -1051,20 +1051,20 @@ function _handle_packet(buf) {
             }
             break;
         case 11: // Player changed rooms
-            var _player_id = _buf_read_leb_u64(buf);
-            var _room = _buf_read_string(buf);
+            _player_id = _buf_read_leb_u64(buf);
+            _room = _buf_read_string(buf);
             if struct_exists(global.__players, _player_id) {
                 _iter_missing_data(_player_id);
                 global.__players[$ _player_id].room = _room;
             }
             break;
         case 12: // Update sync
-            var _player_id = _buf_read_leb_u64(buf);
+            _player_id = _buf_read_leb_u64(buf);
             _iter_missing_data(_player_id);
-            var syncs = struct_exists(global.__players, _player_id) ? global.__players[$ _player_id].syncs : [];
-            var amount = _buf_read_leb_u64(buf);
+            syncs = struct_exists(global.__players, _player_id) ? global.__players[$ _player_id].syncs : [];
+            amount = _buf_read_leb_u64(buf);
             for (var i = 0; i < amount; i++) {
-                var slot = _buf_read_u16(buf);
+                slot = _buf_read_u16(buf);
                 if _buf_read_bool(buf) { // Remove sync
                     if slot >= array_length(syncs) || syncs[slot] == undefined {
                         _check_players_queue(pid);
@@ -1074,8 +1074,8 @@ function _handle_packet(buf) {
                 } else { // Update variables
                     var amount1 = _buf_read_leb_u64(buf);
                     for (var ii = 0; ii < amount1; ii++) {
-                        var name = _buf_read_string(buf);
-                        var remove_vari = _buf_read_u8(buf) == 0xff;
+                        name = _buf_read_string(buf);
+                        remove_vari = _buf_read_u8(buf) == 0xff;
                         _buf_seek_relative(buf, -1);
                         var value = _buf_read_value(buf);
                         if slot >= array_length(syncs) || syncs[slot] == undefined {
@@ -1108,22 +1108,22 @@ function _handle_packet(buf) {
             global.__game_highscores[$ highscore_id].scores[$ highscore_user] = highscore_score;
             break;
         case 14: // Update syncs and variables
-            var _player_id = _buf_read_leb_u64(buf);
-            var syncs = _buf_read_syncs(buf);
-            var variables = _buf_read_struct(buf);
+            _player_id = _buf_read_leb_u64(buf);
+            syncs = _buf_read_syncs(buf);
+            variables = _buf_read_struct(buf);
             if struct_exists(global.__players, _player_id) {
-                var player = global.__players[$ _player_id];
+                player = global.__players[$ _player_id];
                 player.syncs = syncs;
                 player.variables = variables;
             }
             break;
         case 15: // Request variable from another player
-            var _player_id = _buf_read_leb_u64(buf);
+            _player_id = _buf_read_leb_u64(buf);
             var index = _buf_read_u16(buf);
             if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
                 return;
             var callback = global.__callback_other_vari[index];
-            var name = callback[0];
+            name = callback[0];
             var func = callback[1];
             var value = _buf_read_value(buf);
             if struct_exists(global.__players, _player_id) {
@@ -1155,18 +1155,18 @@ function _handle_packet(buf) {
             }
             break;
         case 17: // Request sync variable of another player
-            var _player_id = _buf_read_leb_u64(buf);
-            var index = _buf_read_u16(buf);
+            _player_id = _buf_read_leb_u64(buf);
+            index = _buf_read_u16(buf);
             _iter_missing_data(_player_id);
             if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
                 return;
-            var callback = global.__callback_other_vari[index];
-            var name = callback[0];
-            var func = callback[1];
-            var slot = callback[2];
-            var remove_vari = _buf_read_u8(buf);
+            callback = global.__callback_other_vari[index];
+            name = callback[0];
+            func = callback[1];
+            slot = callback[2];
+            remove_vari = _buf_read_u8(buf);
             _buf_seek_relative(buf, -1);
-            var value = _buf_read_value(buf);
+            value = _buf_read_value(buf);
             if struct_exists(global.__players, _player_id) {
                 var sync = global.__players[$ _player_id].syncs[slot];
                 if remove_vari
@@ -1348,7 +1348,7 @@ function crystal_connect() {
         for (var i = 0; i < array_length(global.__buffered_data); i++) {
             buffer_delete(global.__buffered_data[i]);
         }
-        global.__buffered_data = [];
+        array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
         global.__call_disconnected = true;
         global.__is_connecting = true;
         global.__async_network_id = network_connect_raw_async(global.__socket, "127.0.0.1", port);
