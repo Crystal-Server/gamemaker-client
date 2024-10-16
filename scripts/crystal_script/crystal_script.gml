@@ -10,7 +10,7 @@ enum LoginResult {
     NoAccount = 1,
     WrongPass = 2,
     NoAuth = 3,
-    UsedClient = 4,
+    Unverified = 4,
     AlreadyIn = 5,
     GameBan = 6,
     GlobalBan = 7,
@@ -171,7 +171,7 @@ function _buf_write_i16(buf, val) {
 
 function _buf_write_i64(buf, val) {
     buffer_write(buf, buffer_s32, val & 0xffffffff);
-    buffer_write(buf, buffer_s32, val << 32); // GameMaker has no proper support for i64
+    buffer_write(buf, buffer_s32, val >> 32); // GameMaker has no proper support for i64
 }
 
 function _buf_write_f64(buf, val) {
@@ -225,7 +225,8 @@ function _buf_read_i16(buf) {
 }
 
 function _buf_read_i64(buf) {
-    return (buffer_read(buf, buffer_s32) << 32) | buffer_read(buf, buffer_s32);
+	var top = buffer_read(buf, buffer_s32);
+    return top | (buffer_read(buf, buffer_s32) << 32); // GameMaker has no proper support for i64
 }
 
 function _buf_read_f64(buf) {
@@ -238,6 +239,8 @@ function _buf_read_bool(buf) {
 
 function _buf_read_string(buf) {
     var size = _buf_read_leb_u64(buf);
+	if size == 0
+		return "";
     var rbuf = buffer_create(size, buffer_fixed, 1);
     buffer_copy(buf, buffer_tell(buf), size, rbuf, 0);
     buffer_seek(buf, buffer_seek_relative, size);
@@ -292,7 +295,7 @@ function _buf_read_array(buf) {
 
 function _buf_write_struct(buf, val) {
     var names = struct_get_names(val);
-    _buf_write_leb_u64(buf, array_length(name));
+    _buf_write_leb_u64(buf, array_length(names));
     for (var i = 0; i < array_length(names); i++) {
         var key = names[i];
         _buf_write_string(buf, string(key));
@@ -320,7 +323,7 @@ function _buf_write_value(buf, val) {
         case "int32":
         case "int64":
             _buf_write_u8(buf, 2);
-            _buf_write_u64(buf, val);
+            _buf_write_u64(buf, int64(val));
             break;
         case "number":
             _buf_write_u8(buf, 3);
@@ -347,7 +350,7 @@ function _buf_write_value(buf, val) {
                 _buf_write_list(buf, val);
             } else if ds_exists(val, ds_type_map) {
                 _buf_write_u8(buf, 6);
-                _buf_write_list(buf, val);
+                _buf_write_map(buf, val);
             } else {
                 show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
                 _buf_write_u8(buf, 0);
@@ -371,9 +374,9 @@ function _buf_read_value(buf) {
         case 4:
             return _buf_read_string(buf);
         case 5:
-            return _buf_read_list(buf);
+            return _buf_read_array(buf);
         case 6:
-            return _buf_read_map(buf);
+            return _buf_read_struct(buf);
         case 7:
             return _buf_read_bytes(buf);
         default:
@@ -391,7 +394,7 @@ function _buf_write_syncs(buf, val) {
             _buf_write_bool(buf, true);
             _buf_write_i16(buf, sync.kind);
             _buf_write_u8(buf, sync.type);
-            _buf_write_map(buf, sync.variables);
+            _buf_write_struct(buf, sync.variables);
         }
     }
 }
@@ -489,16 +492,30 @@ function _buf_send(buf) {
             buffer_delete(buf);
             buf = tnbuf;
         }
+		//var event = buffer_peek(buf, 0, buffer_u8);
         _buf_write_leb_u64(nbuf, buffer_tell(buf));
         _buf_write_u8(nbuf, global.__compression);
         buffer_resize(nbuf, buffer_tell(nbuf) + buffer_tell(buf));
         buffer_copy(buf, 0, buffer_tell(buf), nbuf, buffer_tell(nbuf));
-        //buffer_save(nbuf, string(real(buf)));
         var r = network_send_raw(global.__socket, nbuf, buffer_tell(nbuf) + buffer_tell(buf));
         buffer_delete(buf);
         buffer_delete(nbuf);
-        show_debug_message("Sent {0} byte(s)", r);
-        global.__is_connected = r > 0;
+        //show_debug_message("{1}->Sent {0} byte(s)", r, event);
+		if r < 0 {
+			global.__is_connected = false;
+            if global.__call_disconnected {
+                if global.__script_disconnected != undefined
+                    global.__script_disconnected();
+                global.__call_disconnected = false;
+                global.__players = {};
+                global.__players_queue = {};
+                global.__is_loggedin = false;
+                for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                    buffer_delete(global.__buffered_data[i]);
+                }
+                global.__buffered_data = [];
+            }
+		}
     } else {
         array_push(global.__buffered_data, buf);
     }
@@ -531,7 +548,7 @@ function crystal_step() {
                 var player = global.__players[$ key];
                 var player_logged_out = array_contains(global.__players_logout, key);
                 var is_all_undefined = true;
-                for (var ii = 0; array_length(player.syncs); ii++) {
+                for (var ii = 0; ii < array_length(player.syncs); ii++) {
                     var sync = player.syncs[ii];
                     if sync != undefined {
                         is_all_undefined = false;
@@ -564,7 +581,7 @@ function crystal_step() {
                 global.__current_room = r;
                 player_keys = struct_get_names(global.__players);
                 for (var i = 0; i < array_length(player_keys); i++) {
-                    var player = global.__players[player_keys[i]];
+                    var player = global.__players[$ player_keys[i]];
                     if player.room != r
                         player.syncs = [];
                 }
@@ -577,6 +594,7 @@ function crystal_step() {
                     _buf_write_bool(b, true);
                     insts_iter++;
                 }
+				global.__syncs_remove = [];
                 for (var i = 0; i < array_length(global.__syncs); i++) {
                     var sync = global.__syncs[i];
                     if sync != undefined {
@@ -597,13 +615,13 @@ function crystal_step() {
                         }
                     }
                 }
-                array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
                 if insts_iter > 0 {
                     var tb = _buf_new();
                     _buf_write_u8(tb, 13);
                     _buf_write_leb_u64(tb, insts_iter);
                     buffer_resize(tb, buffer_tell(tb) + buffer_tell(b));
                     buffer_copy(b, 0, buffer_tell(b), tb, buffer_tell(tb));
+					buffer_seek(tb, buffer_seek_relative, buffer_tell(b));
                     _buf_send(tb);
                 }
                 buffer_delete(b);
@@ -635,15 +653,16 @@ function crystal_step() {
                         _buf_write_value(b, u.value);
                 }
                 array_delete(global.__update_vari, 0, array_length(global.__update_vari));
+				_buf_send(b);
             }
         }
     }
 }
 
 function crystal_async_networking() {
+	//show_debug_message(json_encode(async_load));
     if _crystal_verify_init() {
         if async_load[? "id"] == global.__socket {
-            show_debug_message(json_encode(async_load));
             switch async_load[? "type"] {
                 case network_type_non_blocking_connect:
                     global.__is_connecting = false;
@@ -661,7 +680,7 @@ function crystal_async_networking() {
                         for (var i = 0; i < array_length(global.__buffered_data); i++) {
                             buffer_delete(global.__buffered_data[i]);
                         }
-                        array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+                        global.__buffered_data = [];
                     }
                     break;
                 case network_type_data:
@@ -674,7 +693,7 @@ function crystal_async_networking() {
                     global.__buffered_receiver_size += size;
                     while true {
                         if global.__buffered_receiver_size == 0 {
-                            show_debug_message("Receiver payload finished. Waiting for more packets.");
+                            //show_debug_message("Receiver payload finished. Waiting for more packets.");
                             break;
                         }
                         var offset = buffer_tell(global.__buffered_receiver);
@@ -684,7 +703,7 @@ function crystal_async_networking() {
                             var ret = false;
                             while true {
                                 if buffer_tell(global.__buffered_receiver) + 1 > global.__buffered_receiver_size {
-                                    show_debug_message("Incomplete LEB128 header, waiting...");
+                                    //show_debug_message("Incomplete LEB128 header, waiting...");
                                     ret = true;
                                     break;
                                 }
@@ -701,7 +720,7 @@ function crystal_async_networking() {
                                 break;
                             }
                             if buffer_tell(global.__buffered_receiver) + 1 > global.__buffered_receiver_size {
-                                show_debug_message("Incomplete decompression header, waiting...");
+                                //show_debug_message("Incomplete decompression header, waiting...");
                                 global.__expected_packet_size = -1;
                                 global.__expected_compression_type = -1;
                                 buffer_seek(global.__buffered_receiver, buffer_seek_start, offset);
@@ -743,7 +762,7 @@ function crystal_async_networking() {
                             _handle_packet(global.__streamed_data);
                             buffer_delete(global.__streamed_data);
                         } else {
-                            show_debug_message("Incomplete data payload, waiting... Expected {0} byte(s), but got {1} byte(s)", global.__expected_packet_size, global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver));
+                            //show_debug_message("Incomplete data payload, waiting... Expected {0} byte(s), but got {1} byte(s)", global.__expected_packet_size, global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver));
                             break;
                         }
                     }
@@ -769,7 +788,7 @@ function _iter_missing_data(pid) {
         for (var i = 0; i < array_length(player.syncs); i++) {
             if player.syncs[i] == undefined && struct_exists(pq.syncs_new, i) {
                 var sn = pq.syncs_new[$ i];
-                var s = {};
+                var s = _create_sync();
                 s.event = SyncEvent.New;
                 s.kind = sn.kind;
                 s.type = sn.type;
@@ -934,7 +953,7 @@ function _handle_packet(buf) {
                 global.__script_login_token(token);
             break;
         case 2: // User logged in
-            var _player_id = _buf_read_u64(buf);
+            var _player_id = _buf_read_leb_u64(buf);
             var name = _buf_read_string(buf);
             var _room = _buf_read_string(buf);
             var variables = _buf_read_struct(buf);
@@ -992,7 +1011,7 @@ function _handle_packet(buf) {
                     else
                         vq.type = VariableQueueType.Set;
                     vq.value = value;
-                    pq.variables[name] = vq;
+                    pq.variables[$ name] = vq;
                 }
             }
             break;
@@ -1067,7 +1086,7 @@ function _handle_packet(buf) {
                 slot = _buf_read_u16(buf);
                 if _buf_read_bool(buf) { // Remove sync
                     if slot >= array_length(syncs) || syncs[slot] == undefined {
-                        _check_players_queue(pid);
+                        _check_players_queue(_player_id);
                         global.__players_queue[$ _player_id].syncs_remove[$ slot] = 0;
                     } else
                         global.__players[$ _player_id].syncs[slot].event = SyncEvent.End;
@@ -1351,7 +1370,7 @@ function crystal_connect() {
         array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
         global.__call_disconnected = true;
         global.__is_connecting = true;
-        global.__async_network_id = network_connect_raw_async(global.__socket, "127.0.0.1", port);
+        global.__async_network_id = network_connect_raw_async(global.__socket, "crystal-server.co", port);
         var b = _buf_new();
         _buf_write_u8(b, 0);
         _buf_write_u64(b, 0xf2b9c7a65420e78);
@@ -1383,6 +1402,34 @@ function crystal_is_connecting() {
 
 function crystal_script_set_room(script) {
     global.__script_room = script;
+}
+
+function crystal_script_set_p2p(script) {
+    global.__script_p2p = script;
+}
+
+function crystal_script_set_register(script) {
+    global.__script_register = script;
+}
+
+function crystal_script_set_login(script) {
+    global.__script_login = script;
+}
+
+function crystal_script_set_banned(script) {
+    global.__script_banned = script;
+}
+
+function crystal_script_set_kicked(script) {
+    global.__script_kicked = script;
+}
+
+function crystal_script_set_disconnected(script) {
+    global.__script_disconnected = script;
+}
+
+function crystal_script_set_login_token(script) {
+    global.__script_login_token = script;
 }
 
 function crystal_login(username, password) {
@@ -1452,7 +1499,7 @@ function crystal_self_set_variable(name, value) {
             return;
     }
     global.__variables[$ name] = value;
-    var u = {};
+    var u = _create_updatevari();
     u.name = name;
     u.value = value;
     array_push(global.__update_vari, u);
@@ -1462,7 +1509,7 @@ function crystal_self_remove_variable(name) {
     if !struct_exists(global.__variables, name)
         return;
     struct_remove(global.__variables, name);
-    var u = {};
+    var u = _create_updatevari();
     u.removed = true;
     u.name = name;
     array_push(global.__update_vari, u);
@@ -1489,6 +1536,18 @@ function crystal_other_get_name(pid) {
     if struct_exists(global.__players, pid)
         return global.__players[$ pid].name;
     return "";
+}
+
+function crystal_other_get_pid(name) {
+	var players = struct_get_names(global.__players);
+	for (var i = 0; i < array_length(players); i++) {
+		var pid = players[i];
+		var player = global.__players[$ pid];
+		if player.name == name {
+			return pid;
+		}
+	}
+	return -1;
 }
 
 function crystal_other_get_variable(pid, name, default_value = undefined) {
@@ -1534,7 +1593,7 @@ function crystal_other_request_variable(p2pcode_or_pid, name, callback = undefin
     }
 }
 
-function crystal_p2p(p2pcode_or_pid, message_id, data) {
+function crystal_p2p(p2pcode_or_pid, message_id, data = []) {
     var b = _buf_new();
     _buf_write_u8(b, 4);
     switch p2pcode_or_pid {

@@ -5,8 +5,8 @@
   "isDnD":false,
   "name":"crystal_script",
   "parent":{
-    "name":"Scripts",
-    "path":"folders/Crystal Server/Scripts.yy",
+    "name":"Crystal Server",
+    "path":"folders/Crystal Server.yy",
   },
   "resourceType":"GMScript",
   "resourceVersion":"2.0",
