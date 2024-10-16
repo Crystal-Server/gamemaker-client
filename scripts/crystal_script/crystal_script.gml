@@ -513,7 +513,7 @@ function _buf_send(buf) {
                 for (var i = 0; i < array_length(global.__buffered_data); i++) {
                     buffer_delete(global.__buffered_data[i]);
                 }
-                global.__buffered_data = [];
+				array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
             }
 		}
     } else {
@@ -563,6 +563,12 @@ function crystal_step() {
                 _iter_missing_data(key);
                 if is_all_undefined && player_logged_out {
                     struct_remove(global.__players, key);
+					for (var ii = 0; ii < array_length(global.__players_logout); ii++) {
+						if global.__players_logout[ii] == key {
+							array_delete(global.__players_logout, ii, 1);
+							break;
+						}
+					}
                     var players_queue_keys = struct_get_names(global.__players_queue);
                     for (var ii = 0; ii < array_length(players_queue_keys); ii++) {
                         if global.__players_queue[$ players_queue_keys[ii]] == key {
@@ -579,12 +585,6 @@ function crystal_step() {
                 _buf_write_string(b, r);
                 _buf_send(b);
                 global.__current_room = r;
-                player_keys = struct_get_names(global.__players);
-                for (var i = 0; i < array_length(player_keys); i++) {
-                    var player = global.__players[$ player_keys[i]];
-                    if player.room != r
-                        player.syncs = [];
-                }
             }
             if (array_length(global.__syncs) > 0 || array_length(global.__syncs_remove) > 0) && global.__is_connected {
                 var b = _buf_new();
@@ -594,7 +594,7 @@ function crystal_step() {
                     _buf_write_bool(b, true);
                     insts_iter++;
                 }
-				global.__syncs_remove = [];
+				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
                 for (var i = 0; i < array_length(global.__syncs); i++) {
                     var sync = global.__syncs[i];
                     if sync != undefined {
@@ -680,7 +680,7 @@ function crystal_async_networking() {
                         for (var i = 0; i < array_length(global.__buffered_data); i++) {
                             buffer_delete(global.__buffered_data[i]);
                         }
-                        global.__buffered_data = [];
+						array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
                     }
                     break;
                 case network_type_data:
@@ -1396,7 +1396,7 @@ function crystal_disconnect() {
         global.__socket = network_create_socket(network_socket_ws);
 }
 
-function crystal_is_connecting() {
+function crystal_info_is_connecting() {
     return global.__is_connecting;
 }
 
@@ -1478,6 +1478,10 @@ function crystal_register(username, email, password, repeat_password) {
 
 function crystal_info_get_ping() {
     return global.__ping;
+}
+
+function crystal_info_is_connected() {
+    return global.__is_connected;
 }
 
 function crystal_info_is_loggedin() {
@@ -1565,11 +1569,11 @@ function crystal_other_has_variable(pid, name) {
     return false;
 }
 
-function crystal_other_request_variable(p2pcode_or_pid, name, callback = undefined) {
+function crystal_other_request_variable(pid, name, callback = undefined) {
     /*if callback == undefined
         callback = function() {};*/
     callback ??= function() {};
-    if struct_exists(global.__players, p2pcode_or_pid) || pid < 0 {
+    if struct_exists(global.__players, pid) || pid < 0 {
         var index = -1;
         for (var i = 0; i < array_length(global.__callback_other_vari); i++) {
             if global.__callback_other_vari[i] == undefined {
@@ -1584,8 +1588,8 @@ function crystal_other_request_variable(p2pcode_or_pid, name, callback = undefin
         global.__callback_other_vari[index] = [name, callback];
         var b = _buf_new();
         _buf_write_u8(b, 3);
-        _buf_write_bool(b, p2pcode_or_pid >= 0);
-        if p2pcode_or_pid >= 0
+        _buf_write_bool(b, pid >= 0);
+        if pid >= 0
             _buf_write_leb_u64(b, pid);
         _buf_write_string(b, name);
         _buf_write_u16(b, index);
@@ -1930,6 +1934,7 @@ function crystal_sync_request_variable(pid, slot, variable_name, callback = unde
             }
             global.__callback_other_vari[index] = [variable_name, callback, slot];
             var b = _buf_new();
+			_buf_write_u8(b, 17);
             _buf_write_leb_u64(b, pid);
             _buf_write_string(b, variable_name);
             _buf_write_u16(b, index);
@@ -1986,7 +1991,7 @@ function crystal_admin_ban_id(pid, unix_unban_time, reason = "") {
     return false;
 }
 
-function crystal_admin_unban_id(pid, reason = "") {
+function crystal_admin_unban_id(pid) {
     if crystal_self_get_admin().can_unban {
         var b = _buf_new();
         _buf_write_u8(b, 16);
@@ -2000,4 +2005,14 @@ function crystal_admin_unban_id(pid, reason = "") {
 
 function crystal_use_compression_zlib(use) {
     global.__compression = use ? CompressionType.Zlib : CompressionType.None;
+}
+
+function crystal_logout() {
+	if crystal_info_is_loggedin() {
+		var b = _buf_new();
+        _buf_write_u8(b, 18);
+        _buf_send(b);
+		return true;
+	}
+	return false;
 }
