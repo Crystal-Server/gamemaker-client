@@ -2012,6 +2012,17 @@ function crystal_logout() {
 		var b = _buf_new();
         _buf_write_u8(b, 18);
         _buf_send(b);
+		global.__player_name = "";
+		global.__player_id = "";
+		global.__player_save = {};
+		global.__players = {};
+        global.__players_queue = {};
+		global.__is_loggedin = false;
+		array_delete(global.__players_logout, 0, array_length(global.__players_logout));
+		for (var i = 0; i < array_length(global.__buffered_data); i++) {
+            buffer_delete(global.__buffered_data[i]);
+        }
+		array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
 		return true;
 	}
 	return false;
