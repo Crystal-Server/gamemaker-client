@@ -1200,13 +1200,33 @@ function _handle_packet(buf) {
             global.__game_version = _buf_read_f64(buf);
             break;
         case 19: // Add administrator
-            var admin = _create_administrator();
-            admin.id = _buf_read_leb_u64(buf);
-            admin.can_kick = _buf_read_bool(buf);
-            admin.can_ban = _buf_read_bool(buf);
-            admin.can_unban = _buf_read_bool(buf);
-            global.__game_adminstrators[$ admin.id] = admin;
+			if _buf_read_bool(buf) {
+	            var admin = _create_administrator();
+	            admin.id = _buf_read_leb_u64(buf);
+	            admin.can_kick = _buf_read_bool(buf);
+	            admin.can_ban = _buf_read_bool(buf);
+	            admin.can_unban = _buf_read_bool(buf);
+	            global.__game_adminstrators[$ admin.id] = admin;
+			} else {
+				admin = _buf_read_leb_u64(buf);
+				struct_remove(global.__game_adminstrators, admin);
+			}
             break;
+		case 20: // Forced disconnection
+			global.__is_connected = false;
+            if global.__call_disconnected {
+                if global.__script_disconnected != undefined
+                    global.__script_disconnected();
+                global.__call_disconnected = false;
+                global.__players = {};
+                global.__players_queue = {};
+                global.__is_loggedin = false;
+                for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                    buffer_delete(global.__buffered_data[i]);
+                }
+				array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+            }
+			break;
     }
 }
 
