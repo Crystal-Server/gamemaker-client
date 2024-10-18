@@ -921,9 +921,9 @@ function _create_variablequeue() {
 }
 
 function _handle_packet(buf) {
-    var event = _buf_read_u8(buf);
-    show_debug_message("Handling event {0}...", event);
-    switch event {
+    //var event = _buf_read_u8(buf);
+    //show_debug_message("Handling event {0}...", event);
+    switch _buf_read_u8(buf) { // event {
         case 0: // Registration
             var code = _buf_read_u8(buf);
             if global.__script_register != undefined
