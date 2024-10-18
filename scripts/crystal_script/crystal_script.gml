@@ -115,6 +115,7 @@ global.__expected_compression_type = undefined;
 global.__streamed_data = undefined;
 global.__buffered_receiver = undefined;
 global.__buffered_receiver_size = 0;
+global.__handshake_completed = false;
 
 function _buf_new() {
     return buffer_create(0, buffer_grow, 1);
@@ -978,6 +979,7 @@ function _handle_packet(buf) {
             global.__game_highscores = _buf_read_highscores(buf);
             global.__game_adminstrators = _buf_read_administrators(buf);
             global.__game_version = _buf_read_f64(buf);
+            global.__handshake_completed = true;
             break;
         case 5: // P2P
             _player_id = _buf_read_leb_u64(buf);
@@ -1208,7 +1210,7 @@ function _handle_packet(buf) {
 	            admin.can_unban = _buf_read_bool(buf);
 	            global.__game_adminstrators[$ admin.id] = admin;
 			} else {
-				admin = _buf_read_leb_u64(buf);
+				var admin = _buf_read_leb_u64(buf);
 				struct_remove(global.__game_adminstrators, admin);
 			}
             break;
@@ -1390,6 +1392,7 @@ function crystal_connect() {
         array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
         global.__call_disconnected = true;
         global.__is_connecting = true;
+        global.__handshake_completed = false;
         global.__async_network_id = network_connect_raw_async(global.__socket, "crystal-server.co", port);
         var b = _buf_new();
         _buf_write_u8(b, 0);
@@ -1417,7 +1420,7 @@ function crystal_disconnect() {
 }
 
 function crystal_info_is_connecting() {
-    return global.__is_connecting;
+    return global.__is_connecting || (!global.__handshake_completed && global.__is_connected);
 }
 
 function crystal_script_set_room(script) {
@@ -1567,7 +1570,7 @@ function crystal_other_get_pid(name) {
 	for (var i = 0; i < array_length(players); i++) {
 		var pid = players[i];
 		var player = global.__players[$ pid];
-		if player.name == name {
+		if string_lower(player.name) == string_lower(name) {
 			return pid;
 		}
 	}
@@ -1985,7 +1988,7 @@ function crystal_other_get_admin(pid) {
 }
 
 function crystal_admin_kick_id(pid, reason = "") {
-    if crystal_self_get_admin().can_kick || pid == crystal_self_get_id() {
+    if pid == crystal_self_get_id() || crystal_self_get_admin().can_kick {
         var b = _buf_new();
         _buf_write_u8(b, 16);
         _buf_write_u8(b, 2);
@@ -1998,7 +2001,7 @@ function crystal_admin_kick_id(pid, reason = "") {
 }
 
 function crystal_admin_ban_id(pid, unix_unban_time, reason = "") {
-    if crystal_self_get_admin().can_ban || pid == crystal_self_get_id() {
+    if pid == crystal_self_get_id() || crystal_self_get_admin().can_ban {
         var b = _buf_new();
         _buf_write_u8(b, 16);
         _buf_write_u8(b, 0);
