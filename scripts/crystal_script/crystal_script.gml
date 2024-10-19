@@ -444,14 +444,14 @@ function _buf_send(buf) {
                 if global.__script_disconnected != undefined
                     global.__script_disconnected();
                 global.__call_disconnected = false;
-                global.__players = {};
-                global.__players_queue = {};
-                global.__is_loggedin = false;
-                for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                    buffer_delete(global.__buffered_data[i]);
-                }
-				array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
             }
+            global.__players = {};
+            global.__players_queue = {};
+            global.__is_loggedin = false;
+            for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                buffer_delete(global.__buffered_data[i]);
+            }
+			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
 		}
     } else {
         array_push(global.__buffered_data, buf);
@@ -611,14 +611,14 @@ function crystal_async_networking() {
                         if global.__script_disconnected != undefined
                             global.__script_disconnected();
                         global.__call_disconnected = false;
-                        global.__players = {};
-                        global.__players_queue = {};
-                        global.__is_loggedin = false;
-                        for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                            buffer_delete(global.__buffered_data[i]);
-                        }
-						array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
                     }
+                    global.__players = {};
+                    global.__players_queue = {};
+                    global.__is_loggedin = false;
+                    for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                        buffer_delete(global.__buffered_data[i]);
+                    }
+					array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
                     break;
                 case network_type_data:
                     var buf = async_load[? "buffer"];
@@ -1110,6 +1110,14 @@ function _handle_packet(buf) {
                         global.__script_disconnected();
                     break;
             }
+            global.__is_connected = false;
+            global.__players = {};
+            global.__players_queue = {};
+            global.__is_loggedin = false;
+            for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                buffer_delete(global.__buffered_data[i]);
+            }
+			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
             break;
         case 17: // Request sync variable of another player
             _player_id = _buf_read_leb_u64(buf);
@@ -1156,14 +1164,14 @@ function _handle_packet(buf) {
                 if global.__script_disconnected != undefined
                     global.__script_disconnected();
                 global.__call_disconnected = false;
-                global.__players = {};
-                global.__players_queue = {};
-                global.__is_loggedin = false;
-                for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                    buffer_delete(global.__buffered_data[i]);
-                }
-				array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
             }
+            global.__players = {};
+            global.__players_queue = {};
+            global.__is_loggedin = false;
+            for (var i = 0; i < array_length(global.__buffered_data); i++) {
+                buffer_delete(global.__buffered_data[i]);
+            }
+			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
 			break;
     }
 }
