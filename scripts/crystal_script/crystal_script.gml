@@ -620,13 +620,14 @@ function crystal_step() {
                     buffer_write(b, buffer_u8, 9);
                     _buf_write_leb_u64(b, array_length(global.__update_gameini));
                     for (var i = 0; i < array_length(global.__update_gameini); i++) {
-                        var u = global.__update_vari[i];
+                        var u = global.__update_gameini[i];
                         _buf_write_string(b, u.name);
                         if u.removed
                             buffer_write(b, buffer_u8, 0xff);
                         else
                             _buf_write_value(b, u.value);
                     }
+                    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
                     _buf_send(b);
                 }
                 if array_length(global.__update_playerini) > 0 {
@@ -641,6 +642,7 @@ function crystal_step() {
                         else
                             _buf_write_value(b, u.value);
                     }
+                    array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
                     _buf_send(b);
                 }
             }
