@@ -665,7 +665,7 @@ function crystal_async_networking() {
                             } else
                                 global.__expected_compression_type = buffer_read(global.__buffered_receiver, buffer_u8);
                         }
-                        if global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver) >= global.__expected_packet_size - 1 {
+                        if global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver) >= global.__expected_packet_size - 1 && global.__expected_packet_size > 0 {
                             global.__streamed_data = buffer_create(global.__expected_packet_size - 1, buffer_fixed, 1);
                             buffer_copy(global.__buffered_receiver, buffer_tell(global.__buffered_receiver), global.__expected_packet_size, global.__streamed_data, 0);
                             var copy_offset = buffer_tell(global.__buffered_receiver) + (global.__expected_packet_size - 1);
@@ -857,9 +857,8 @@ function _create_variablequeue() {
 }
 
 function _handle_packet(buf) {
-    //var event = _buf_read_u8(buf);
-    //show_debug_message("Handling event {0}...", event);
-    switch buffer_read(buf, buffer_u8) { // event {
+    //show_debug_message("Handling event {0}...", buffer_peek(buf, 0, buffer_u8));
+    switch buffer_read(buf, buffer_u8) {
         case 0: // Registration
             var code = buffer_read(buf, buffer_u8);
             if global.__script_register != undefined
@@ -1048,7 +1047,7 @@ function _handle_packet(buf) {
                         } else if remove_vari
                             struct_remove(syncs[slot].variables, name);
                         else
-                            syncs[slot].variables[name] = vari;
+                            syncs[slot].variables[$ name] = value;
                     }
                 }
             }
@@ -1326,6 +1325,11 @@ function crystal_connect() {
         if global.__socket != undefined && global.__is_connected {
             return;
         }
+        network_destroy(global.__socket);
+        if os_browser == browser_not_a_browser
+            global.__socket = network_create_socket(network_socket_tcp);
+        else
+            global.__socket = network_create_socket(network_socket_ws);
         var port = 16562;
         if os_browser == browser_not_a_browser {
             port = 16561;
@@ -1537,8 +1541,6 @@ function crystal_other_has_variable(pid, name) {
 }
 
 function crystal_other_request_variable(pid, name, callback = undefined) {
-    /*if callback == undefined
-        callback = function() {};*/
     callback ??= function() {};
     if struct_exists(global.__players, pid) || pid < 0 {
         var index = -1;
