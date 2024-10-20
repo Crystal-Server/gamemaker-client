@@ -105,6 +105,8 @@ global.__ping = 0.0;
 global.__buffered_data = [];
 global.__new_sync_queue = [];
 global.__update_vari = [];
+global.__update_gameini = [];
+global.__update_playerini = [];
 global.__callback_other_vari = [];
 global.__call_disconnected = true;
 global.__compression = CompressionType.None;
@@ -445,13 +447,7 @@ function _buf_send(buf) {
                     global.__script_disconnected();
                 global.__call_disconnected = false;
             }
-            global.__players = {};
-            global.__players_queue = {};
-            global.__is_loggedin = false;
-            for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                buffer_delete(global.__buffered_data[i]);
-            }
-			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+            _crystal_clear_disconnected();
 		}
     } else {
         array_push(global.__buffered_data, buf);
@@ -460,6 +456,32 @@ function _buf_send(buf) {
 
 function _crystal_verify_init() {
     return variable_global_exists("__crystal_object");
+}
+
+function _crystal_clear_disconnected() {
+    global.__player_name = "";
+	global.__player_id = "";
+	global.__player_save = {};
+    global.__player_open_save = "";
+    global.__game_save = {};
+    global.__game_open_save = "";
+    global.__game_achievements = {};
+    global.__game_highscores = {};
+    global.__game_adminstrators = {};
+	global.__players = {};
+    global.__players_queue = {};
+	global.__is_loggedin = false;
+	array_delete(global.__players_logout, 0, array_length(global.__players_logout));
+	for (var i = 0; i < array_length(global.__buffered_data); i++) {
+        buffer_delete(global.__buffered_data[i]);
+    }
+	array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+    array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
+    array_delete(global.__update_vari, 0, array_length(global.__update_vari));
+    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
+    array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
+    array_delete(global.__callback_other_vari, 0, array_length(global.__callback_other_vari));
+    
 }
 
 function crystal_init(game_id) {
@@ -478,119 +500,149 @@ function crystal_step() {
         if global.__socket != undefined {
             if !global.__is_connected && global.__is_loggedin
                 global.__is_loggedin = false;
-            var r = _get_room();
-            var player_keys = struct_get_names(global.__players);
-            for (var i = 0; i < array_length(player_keys); i++) {
-                var key = player_keys[i];
-                var player = global.__players[$ key];
-                var player_logged_out = array_contains(global.__players_logout, key);
-                var is_all_undefined = true;
-                for (var ii = 0; ii < array_length(player.syncs); ii++) {
-                    var sync = player.syncs[ii];
-                    if sync != undefined {
-                        is_all_undefined = false;
-                        if sync.event == SyncEvent.End
-                            player.syncs[ii] = undefined;
-                        if sync.type == CreateSync.Once
-                            sync.event = SyncEvent.End;
-                        if r != player.room || player_logged_out
-                            sync.event = SyncEvent.End;
-                    }
-                }
-                _iter_missing_data(key);
-                if is_all_undefined && player_logged_out {
-                    struct_remove(global.__players, key);
-					for (var ii = 0; ii < array_length(global.__players_logout); ii++) {
-						if global.__players_logout[ii] == key {
-							array_delete(global.__players_logout, ii, 1);
-							break;
-						}
-					}
-                    var players_queue_keys = struct_get_names(global.__players_queue);
-                    for (var ii = 0; ii < array_length(players_queue_keys); ii++) {
-                        if global.__players_queue[$ players_queue_keys[ii]] == key {
-                            struct_remove(global.__players_queue, players_queue_keys[ii]);
-                            break;
+            if global.__is_connected {
+                var r = _get_room();
+                var player_keys = struct_get_names(global.__players);
+                for (var i = 0; i < array_length(player_keys); i++) {
+                    var key = player_keys[i];
+                    var player = global.__players[$ key];
+                    var player_logged_out = array_contains(global.__players_logout, key);
+                    var is_all_undefined = true;
+                    for (var ii = 0; ii < array_length(player.syncs); ii++) {
+                        var sync = player.syncs[ii];
+                        if sync != undefined {
+                            is_all_undefined = false;
+                            if sync.event == SyncEvent.End
+                                player.syncs[ii] = undefined;
+                            if sync.type == CreateSync.Once
+                                sync.event = SyncEvent.End;
+                            if r != player.room || player_logged_out
+                                sync.event = SyncEvent.End;
                         }
                     }
-                }
-            }
-            _iter_buffered_data();
-            if r != global.__current_room && global.__is_connected {
-                var b = buffer_create(0, buffer_grow, 1);
-                buffer_write(b, buffer_u8, 11);
-                _buf_write_string(b, r);
-                _buf_send(b);
-                global.__current_room = r;
-            }
-            if (array_length(global.__syncs) > 0 || array_length(global.__syncs_remove) > 0) && global.__is_connected {
-                var b = buffer_create(0, buffer_grow, 1);
-                var insts_iter = 0;
-                for (var i = 0; i < array_length(global.__syncs_remove); i++) {
-                    buffer_write(b, buffer_s16, global.__syncs_remove[i]);
-                    _buf_write_bool(b, true);
-                    insts_iter++;
-                }
-				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
-                for (var i = 0; i < array_length(global.__syncs); i++) {
-                    var sync = global.__syncs[i];
-                    if sync != undefined {
-                        if array_length(sync.to_sync) > 0 {
-                            buffer_write(b, buffer_s16, i);
-                            _buf_write_bool(b, false);
-                            _buf_write_leb_u64(b, array_length(sync.to_sync));
-                            for (var ii = 0; ii < array_length(sync.to_sync); ii++) {
-                                var to_sync = sync.to_sync[ii];
-                                _buf_write_string(b, to_sync);
-                                if struct_exists(sync.variables, to_sync)
-                                    _buf_write_value(b, sync.variables[$ to_sync])
-                                else
-                                    buffer_write(b, buffer_u8, 0xff);
+                    _iter_missing_data(key);
+                    if is_all_undefined && player_logged_out {
+                        struct_remove(global.__players, key);
+    					for (var ii = 0; ii < array_length(global.__players_logout); ii++) {
+    						if global.__players_logout[ii] == key {
+    							array_delete(global.__players_logout, ii, 1);
+    							break;
+    						}
+    					}
+                        var players_queue_keys = struct_get_names(global.__players_queue);
+                        for (var ii = 0; ii < array_length(players_queue_keys); ii++) {
+                            if global.__players_queue[$ players_queue_keys[ii]] == key {
+                                struct_remove(global.__players_queue, players_queue_keys[ii]);
+                                break;
                             }
-                            sync.to_sync = [];
-                            insts_iter++;
                         }
                     }
                 }
-                if insts_iter > 0 {
-                    var tb = buffer_create(0, buffer_grow, 1);
-                    buffer_write(tb, buffer_u8, 13);
-                    _buf_write_leb_u64(tb, insts_iter);
-                    buffer_resize(tb, buffer_tell(tb) + buffer_tell(b));
-                    buffer_copy(b, 0, buffer_tell(b), tb, buffer_tell(tb));
-					buffer_seek(tb, buffer_seek_relative, buffer_tell(b));
-                    _buf_send(tb);
-                }
-                buffer_delete(b);
-            }
-            if array_length(global.__new_sync_queue) > 0 && global.__is_connected {
-                for (var i = 0; i < array_length(global.__new_sync_queue); i++) {
-                    var s = global.__new_sync_queue[i];
+                _iter_buffered_data();
+                if r != global.__current_room {
                     var b = buffer_create(0, buffer_grow, 1);
-                    buffer_write(b, buffer_u8, 12);
-                    buffer_write(b, buffer_u16, s.slot);
-                    buffer_write(b, buffer_s16, s.kind);
-                    buffer_write(b, buffer_u8, s.type);
-                    _buf_write_struct(b, global.__syncs[s.slot].variables);
+                    buffer_write(b, buffer_u8, 11);
+                    _buf_write_string(b, r);
                     _buf_send(b);
-                    global.__syncs[s.slot].to_sync = [];
+                    global.__current_room = r;
                 }
-                array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
-            }
-            if array_length(global.__update_vari) > 0 && global.__is_connected {
-                var b = buffer_create(0, buffer_grow, 1);
-                buffer_write(b, buffer_u8, 7);
-                _buf_write_leb_u64(b, array_length(global.__update_vari));
-                for (var i = 0; i < array_length(global.__update_vari); i++) {
-                    var u = global.__update_vari[i];
-                    _buf_write_string(b, u.name);
-                    if u.removed
-                        buffer_write(b, buffer_u8, 0xff);
-                    else
-                        _buf_write_value(b, u.value);
+                if array_length(global.__syncs) > 0 || array_length(global.__syncs_remove) > 0 {
+                    var b = buffer_create(0, buffer_grow, 1);
+                    var insts_iter = 0;
+                    for (var i = 0; i < array_length(global.__syncs_remove); i++) {
+                        buffer_write(b, buffer_s16, global.__syncs_remove[i]);
+                        _buf_write_bool(b, true);
+                        insts_iter++;
+                    }
+    				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
+                    for (var i = 0; i < array_length(global.__syncs); i++) {
+                        var sync = global.__syncs[i];
+                        if sync != undefined {
+                            if array_length(sync.to_sync) > 0 {
+                                buffer_write(b, buffer_s16, i);
+                                _buf_write_bool(b, false);
+                                _buf_write_leb_u64(b, array_length(sync.to_sync));
+                                for (var ii = 0; ii < array_length(sync.to_sync); ii++) {
+                                    var to_sync = sync.to_sync[ii];
+                                    _buf_write_string(b, to_sync);
+                                    if struct_exists(sync.variables, to_sync)
+                                        _buf_write_value(b, sync.variables[$ to_sync])
+                                    else
+                                        buffer_write(b, buffer_u8, 0xff);
+                                }
+                                sync.to_sync = [];
+                                insts_iter++;
+                            }
+                        }
+                    }
+                    if insts_iter > 0 {
+                        var tb = buffer_create(0, buffer_grow, 1);
+                        buffer_write(tb, buffer_u8, 13);
+                        _buf_write_leb_u64(tb, insts_iter);
+                        buffer_resize(tb, buffer_tell(tb) + buffer_tell(b));
+                        buffer_copy(b, 0, buffer_tell(b), tb, buffer_tell(tb));
+    					buffer_seek(tb, buffer_seek_relative, buffer_tell(b));
+                        _buf_send(tb);
+                    }
+                    buffer_delete(b);
                 }
-                array_delete(global.__update_vari, 0, array_length(global.__update_vari));
-				_buf_send(b);
+                if array_length(global.__new_sync_queue) > 0 {
+                    for (var i = 0; i < array_length(global.__new_sync_queue); i++) {
+                        var s = global.__new_sync_queue[i];
+                        var b = buffer_create(0, buffer_grow, 1);
+                        buffer_write(b, buffer_u8, 12);
+                        buffer_write(b, buffer_u16, s.slot);
+                        buffer_write(b, buffer_s16, s.kind);
+                        buffer_write(b, buffer_u8, s.type);
+                        _buf_write_struct(b, global.__syncs[s.slot].variables);
+                        _buf_send(b);
+                        global.__syncs[s.slot].to_sync = [];
+                    }
+                    array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
+                }
+                if array_length(global.__update_vari) > 0 {
+                    var b = buffer_create(0, buffer_grow, 1);
+                    buffer_write(b, buffer_u8, 7);
+                    _buf_write_leb_u64(b, array_length(global.__update_vari));
+                    for (var i = 0; i < array_length(global.__update_vari); i++) {
+                        var u = global.__update_vari[i];
+                        _buf_write_string(b, u.name);
+                        if u.removed
+                            buffer_write(b, buffer_u8, 0xff);
+                        else
+                            _buf_write_value(b, u.value);
+                    }
+                    array_delete(global.__update_vari, 0, array_length(global.__update_vari));
+    				_buf_send(b);
+                }
+                if array_length(global.__update_gameini) > 0 {
+                    var b = buffer_create(0, buffer_grow, 1);
+                    buffer_write(b, buffer_u8, 9);
+                    _buf_write_leb_u64(b, array_length(global.__update_gameini));
+                    for (var i = 0; i < array_length(global.__update_gameini); i++) {
+                        var u = global.__update_vari[i];
+                        _buf_write_string(b, u.name);
+                        if u.removed
+                            buffer_write(b, buffer_u8, 0xff);
+                        else
+                            _buf_write_value(b, u.value);
+                    }
+                    _buf_send(b);
+                }
+                if array_length(global.__update_playerini) > 0 {
+                    var b = buffer_create(0, buffer_grow, 1);
+                    buffer_write(b, buffer_u8, 10);
+                    _buf_write_leb_u64(b, array_length(global.__update_playerini));
+                    for (var i = 0; i < array_length(global.__update_playerini); i++) {
+                        var u = global.__update_playerini[i];
+                        _buf_write_string(b, u.name);
+                        if u.removed
+                            buffer_write(b, buffer_u8, 0xff);
+                        else
+                            _buf_write_value(b, u.value);
+                    }
+                    _buf_send(b);
+                }
             }
         }
     }
@@ -612,13 +664,7 @@ function crystal_async_networking() {
                             global.__script_disconnected();
                         global.__call_disconnected = false;
                     }
-                    global.__players = {};
-                    global.__players_queue = {};
-                    global.__is_loggedin = false;
-                    for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                        buffer_delete(global.__buffered_data[i]);
-                    }
-					array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+                    _crystal_clear_disconnected();
                     break;
                 case network_type_data:
                     var buf = async_load[? "buffer"];
@@ -969,14 +1015,17 @@ function _handle_packet(buf) {
             global.__players_queue = {};
             break;
         case 9: // Game ini write
-            name = _buf_read_string(buf);
-            var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
-            buffer_seek(buf, buffer_seek_relative, -1);
-            var vari = _buf_read_value(buf);
-            if remove_vari
-                struct_remove(global.__game_save, name);
-            else
-                global.__game_save[$ name] = vari;
+            var size = _buf_read_leb_u64(buf);
+            repeat size {
+                name = _buf_read_string(buf);
+                var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                buffer_seek(buf, buffer_seek_relative, -1);
+                var vari = _buf_read_value(buf);
+                if remove_vari
+                    struct_remove(global.__game_save, name);
+                else
+                    global.__game_save[$ name] = vari;
+            }
             break;
         case 10: // New sync
             _player_id = _buf_read_leb_u64(buf);
@@ -1110,13 +1159,7 @@ function _handle_packet(buf) {
                     break;
             }
             global.__is_connected = false;
-            global.__players = {};
-            global.__players_queue = {};
-            global.__is_loggedin = false;
-            for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                buffer_delete(global.__buffered_data[i]);
-            }
-			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+            _crystal_clear_disconnected();
             break;
         case 17: // Request sync variable of another player
             _player_id = _buf_read_leb_u64(buf);
@@ -1164,14 +1207,21 @@ function _handle_packet(buf) {
                     global.__script_disconnected();
                 global.__call_disconnected = false;
             }
-            global.__players = {};
-            global.__players_queue = {};
-            global.__is_loggedin = false;
-            for (var i = 0; i < array_length(global.__buffered_data); i++) {
-                buffer_delete(global.__buffered_data[i]);
-            }
-			array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+            _crystal_clear_disconnected();
 			break;
+        case 21: // Player ini write
+            var size = _buf_read_leb_u64(buf);
+            repeat size {
+                name = _buf_read_string(buf);
+                var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                buffer_seek(buf, buffer_seek_relative, -1);
+                var vari = _buf_read_value(buf);
+                if remove_vari
+                    struct_remove(global.__player_save, name);
+                else
+                    global.__player_save[$ name] = vari;
+            }
+            break;
     }
 }
 
@@ -1467,7 +1517,7 @@ function crystal_self_get_name() {
     return global.__player_name;
 }
 
-function crystal_self_set_variable(name, value) {
+function crystal_self_set(name, value) {
     value = _get_value_valid(value);
     if struct_exists(global.__variables, name) {
         if global.__variables[$ name] == value
@@ -1480,7 +1530,7 @@ function crystal_self_set_variable(name, value) {
     array_push(global.__update_vari, u);
 }
 
-function crystal_self_remove_variable(name) {
+function crystal_self_remove(name) {
     if !struct_exists(global.__variables, name)
         return;
     struct_remove(global.__variables, name);
@@ -1525,7 +1575,7 @@ function crystal_other_get_pid(name) {
 	return -1;
 }
 
-function crystal_other_get_variable(pid, name, default_value = undefined) {
+function crystal_other_get(pid, name, default_value = undefined) {
     if struct_exists(global.__players, pid) {
         var vari = global.__players[$ pid].variables;
         if struct_exists(vari, name)
@@ -1534,13 +1584,13 @@ function crystal_other_get_variable(pid, name, default_value = undefined) {
     return default_value;
 }
 
-function crystal_other_has_variable(pid, name) {
+function crystal_other_has(pid, name) {
     if struct_exists(global.__players, pid)
         return struct_exists(global.__players[$ pid].variables, name);
     return false;
 }
 
-function crystal_other_request_variable(pid, name, callback = undefined) {
+function crystal_other_request(pid, name, callback = undefined) {
     callback ??= function() {};
     if struct_exists(global.__players, pid) || pid < 0 {
         var index = -1;
@@ -1646,21 +1696,19 @@ function crystal_playerini_write(section, key, value) {
             return;
     }
     global.__player_save[$ _get_save_key(global.__player_open_save, section, key)] = value;
-    var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 10);
-    _buf_write_string(b, _get_save_key(global.__player_open_save, section, key));
-    _buf_write_value(b, value);
-    _buf_send(b);
+    var u = _create_updatevari();
+    u.name = _get_save_key(global.__player_open_save, section, key);
+    u.value = value;
+    array_push(global.__update_playerini, u);
 }
 
 function crystal_playerini_remove(section, key) {
     if crystal_playerini_exists(section, key) {
         struct_remove(global.__player_save, _get_save_key(global.__player_open_save, section, key));
-        var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 10);
-        _buf_write_string(b, _get_save_key(global.__player_open_save, section, key));
-        buffer_write(b, buffer_u8, 0xff);
-        _buf_send(b);
+        var u = _create_updatevari();
+        u.removed = true;
+        u.name = _get_save_key(global.__player_open_save, section, key);
+        array_push(global.__update_playerini, u);
     }
 }
 
@@ -1693,21 +1741,19 @@ function crystal_gameini_write(section, key, value) {
             return;
     }
     global.__game_save[$ _get_save_key(global.__game_open_save, section, key)] = value;
-    var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 9);
-    _buf_write_string(b, _get_save_key(global.__game_open_save, section, key));
-    _buf_write_value(b, value);
-    _buf_send(b);
+    var u = _create_updatevari();
+    u.name = _get_save_key(global.__game_open_save, section, key);
+    u.value = value;
+    array_push(global.__update_gameini, u);
 }
 
 function crystal_gameini_remove(section, key) {
     if crystal_gameini_exists(section, key) {
         struct_remove(global.__game_save, _get_save_key(global.__game_open_save, section, key));
-        var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 9);
-        _buf_write_string(b, _get_save_key(global.__game_open_save, section, key));
-        buffer_write(b, buffer_u8, 0xff);
-        _buf_send(b);
+        var u = _create_updatevari();
+        u.removed = true;
+        u.name = _get_save_key(global.__game_open_save, section, key);
+        array_push(global.__update_gameini, u);
     }
 }
 
@@ -1743,7 +1789,7 @@ function crystal_achievement_reach(aid) {
     }
 }
 
-function crystal_achievement_reached_time(aid) {
+function crystal_achievement_get(aid) {
     if crystal_achievement_is_reached(aid)
         return global.__game_achievements[$ aid].players[$ crystal_self_get_id()];
     return 0;
@@ -1759,7 +1805,7 @@ function crystal_highscore_get_name(hid) {
     return "";
 }
 
-function crystal_highscore_get_score(hid) {
+function crystal_highscore_get(hid) {
     if crystal_highscore_exists(hid) {
         var highscore = global.__game_highscores[$ hid];
         if struct_exists(highscore.scores, crystal_self_get_id())
@@ -1768,7 +1814,7 @@ function crystal_highscore_get_score(hid) {
     return 0;
 }
 
-function crystal_highscore_set_score(hid, score) {
+function crystal_highscore_set(hid, score) {
     if crystal_highscore_exists(hid) {
         var highscore = global.__game_highscores[$ hid];
         if struct_exists(highscore.scores, crystal_self_get_id()) {
@@ -1885,7 +1931,7 @@ function crystal_sync_iter(script) {
     }
 }
 
-function crystal_sync_request_variable(pid, slot, variable_name, callback = undefined) {
+function crystal_sync_request(pid, slot, variable_name, callback = undefined) {
     callback ??= function() {};
     if struct_exists(global.__players, pid) {
         var player = global.__players[$ pid];
@@ -1933,7 +1979,7 @@ function crystal_other_get_admin(pid) {
     return undefined;
 }
 
-function crystal_admin_kick_id(pid, reason = "") {
+function crystal_admin_kick(pid, reason = "") {
     if pid == crystal_self_get_id() || crystal_self_get_admin().can_kick {
         var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 16);
@@ -1946,7 +1992,7 @@ function crystal_admin_kick_id(pid, reason = "") {
     return false;
 }
 
-function crystal_admin_ban_id(pid, unix_unban_time, reason = "") {
+function crystal_admin_ban(pid, unix_unban_time, reason = "") {
     if pid == crystal_self_get_id() || crystal_self_get_admin().can_ban {
         var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 16);
@@ -1960,7 +2006,7 @@ function crystal_admin_ban_id(pid, unix_unban_time, reason = "") {
     return false;
 }
 
-function crystal_admin_unban_id(pid) {
+function crystal_admin_unban(pid) {
     if crystal_self_get_admin().can_unban {
         var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 16);
@@ -1981,17 +2027,7 @@ function crystal_logout() {
 		var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 18);
         _buf_send(b);
-		global.__player_name = "";
-		global.__player_id = "";
-		global.__player_save = {};
-		global.__players = {};
-        global.__players_queue = {};
-		global.__is_loggedin = false;
-		array_delete(global.__players_logout, 0, array_length(global.__players_logout));
-		for (var i = 0; i < array_length(global.__buffered_data); i++) {
-            buffer_delete(global.__buffered_data[i]);
-        }
-		array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
+		_crystal_clear_disconnected();
 		return true;
 	}
 	return false;
