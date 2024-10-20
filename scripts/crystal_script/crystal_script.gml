@@ -1082,7 +1082,7 @@ function _handle_packet(buf) {
                     var amount1 = _buf_read_leb_u64(buf);
                     for (var ii = 0; ii < amount1; ii++) {
                         name = _buf_read_string(buf);
-                        remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                        var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
                         buffer_seek(buf, buffer_seek_relative, -1);
                         var value = _buf_read_value(buf);
                         if slot >= array_length(syncs) || syncs[slot] == undefined {
@@ -1173,7 +1173,7 @@ function _handle_packet(buf) {
             name = callback[0];
             func = callback[1];
             slot = callback[2];
-            remove_vari = buffer_read(buf, buffer_u8);
+            var remove_vari = buffer_read(buf, buffer_u8);
             buffer_seek(buf, buffer_seek_relative, -1);
             value = _buf_read_value(buf);
             if struct_exists(global.__players, _player_id) {
@@ -1212,10 +1212,10 @@ function _handle_packet(buf) {
             _crystal_clear_disconnected();
 			break;
         case 21: // Player ini write
-            var size = _buf_read_leb_u64(buf);
+            size = _buf_read_leb_u64(buf);
             repeat size {
                 name = _buf_read_string(buf);
-                var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                remove_vari = buffer_read(buf, buffer_u8) == 0xff;
                 buffer_seek(buf, buffer_seek_relative, -1);
                 var vari = _buf_read_value(buf);
                 if remove_vari
