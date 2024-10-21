@@ -460,7 +460,7 @@ function _crystal_verify_init() {
 
 function _crystal_clear_disconnected() {
     global.__player_name = "";
-	global.__player_id = "";
+	global.__player_id = -1;
 	global.__player_save = {};
     global.__player_open_save = "";
     global.__game_save = {};
