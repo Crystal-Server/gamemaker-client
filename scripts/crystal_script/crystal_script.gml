@@ -1089,7 +1089,7 @@ function _handle_packet(buf) {
                             _check_players_queue(_player_id);
                             var pq = global.__players_queue[$ _player_id];
                             if !struct_exists(pq.syncs, slot)
-                                pq.syncs[$ slot] = _create_sync();
+                                pq.syncs[$ slot] = {};
                             var vq = _create_variablequeue();
                             vq.name = name;
                             vq.type = remove_vari ? VariableQueueType.Remove : VariableQueueType.Set;
