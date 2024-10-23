@@ -1901,6 +1901,18 @@ function crystal_sync_get(pid, sync_slot, name, default_value = undefined) {
     return default_value;
 }
 
+function crystal_sync_has(pid, sync_slot, name) {
+    if struct_exists(global.__players, pid) {
+        var syncs = global.__players[$ pid].syncs;
+        if sync_slot < array_length(syncs) && sync_slot >= 0 {
+            if syncs[sync_slot] != undefined {
+                return struct_exists(syncs[sync_slot].variables, name);
+            }
+        }
+    }
+    return false;
+}
+
 function crystal_sync_destroy(slot) {
     if slot < array_length(global.__syncs) && slot >= 0 && global.__syncs[slot] != undefined {
         global.__syncs[slot] = undefined;
