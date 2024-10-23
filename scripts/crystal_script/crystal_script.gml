@@ -1417,6 +1417,7 @@ function crystal_disconnect() {
         global.__socket = network_create_socket(network_socket_tcp);
     else
         global.__socket = network_create_socket(network_socket_ws);
+    _crystal_clear_disconnected();
 }
 
 function crystal_info_is_connecting() {
