@@ -133,8 +133,7 @@ function _buf_write_leb_u64(buf, val) {
 }
 
 function _buf_write_i64(buf, val) {
-    buffer_write(buf, buffer_s32, val & 0xffffffff);
-    buffer_write(buf, buffer_s32, val >> 32); // GameMaker has no proper support for i64
+    buffer_write(buf, buffer_u64, int64(val)); // Hacky conversion, it mostly works
 }
 
 function _buf_write_bool(buf, val) {
@@ -168,8 +167,7 @@ function _buf_read_leb_u64(buf) {
 }
 
 function _buf_read_i64(buf) {
-	var top = buffer_read(buf, buffer_s32);
-    return top | (buffer_read(buf, buffer_s32) << 32); // GameMaker has no proper support for i64
+	return int64(buffer_read(buf, buffer_u64)); // Least hacky GameMaker thing ever
 }
 
 function _buf_read_bool(buf) {
@@ -1393,7 +1391,9 @@ function crystal_connect() {
         global.__call_disconnected = true;
         global.__is_connecting = true;
         global.__handshake_completed = false;
-        global.__async_network_id = network_connect_raw_async(global.__socket, "crystal-server.co", port);
+        var __a = "server";
+        var __b = ".";
+        global.__async_network_id = network_connect_raw_async(global.__socket, __a + __b + "crystal-server.co", port);
         var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 0);
         buffer_write(b, buffer_u64, 0xf2b9c7a65420e78);
@@ -1417,6 +1417,8 @@ function crystal_disconnect() {
         global.__socket = network_create_socket(network_socket_tcp);
     else
         global.__socket = network_create_socket(network_socket_ws);
+    global.__is_connected = false;
+    global.__is_connecting = false;
     _crystal_clear_disconnected();
 }
 
@@ -1546,7 +1548,8 @@ function crystal_self_remove(name) {
 function crystal_other_iter(script) {
     var player_keys = struct_get_names(global.__players);
     for (var i = 0; i < array_length(player_keys); i++) {
-        script(real(player_keys[i]), global.__players[$ player_keys[i]].name);
+        if struct_exists(global.__players, player_keys[i])
+            script(real(player_keys[i]), global.__players[$ player_keys[i]].name);
     }
 }
 
