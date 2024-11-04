@@ -101,6 +101,7 @@ global.__syncs = [];
 global.__syncs_remove = [];
         
 global.__ping = 0.0;
+global.__last_ping = undefined;
         
 global.__buffered_data = [];
 global.__new_sync_queue = [];
@@ -479,7 +480,8 @@ function _crystal_clear_disconnected() {
     array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
     array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
     array_delete(global.__callback_other_vari, 0, array_length(global.__callback_other_vari));
-    
+    network_destroy(global.__socket);
+    global.__socket = undefined;
 }
 
 function crystal_init(game_id) {
@@ -499,6 +501,17 @@ function crystal_step() {
             if !global.__is_connected && global.__is_loggedin
                 global.__is_loggedin = false;
             if global.__is_connected {
+                if global.__last_ping != undefined {
+                    if (get_timer() - global.__last_ping) / 1000000 > 60 * 2 {
+                        global.__is_connected = false;
+                        if global.__call_disconnected {
+                            if global.__script_disconnected != undefined
+                                global.__script_disconnected();
+                            global.__call_disconnected = false;
+                        }
+                        _crystal_clear_disconnected();
+                    }
+                }
                 var r = _get_room();
                 var player_keys = struct_get_names(global.__players);
                 for (var i = 0; i < array_length(player_keys); i++) {
@@ -961,6 +974,7 @@ function _handle_packet(buf) {
             global.__game_adminstrators = _buf_read_administrators(buf);
             global.__game_version = buffer_read(buf, buffer_f64);
             global.__handshake_completed = true;
+            global.__last_ping = get_timer();
             break;
         case 5: // P2P
             _player_id = _buf_read_leb_u64(buf);
@@ -1007,6 +1021,7 @@ function _handle_packet(buf) {
                     break;
                 case 1:
                     global.__ping = buffer_read(buf, buffer_f64);
+                    global.__last_ping = get_timer();
                     break;
             }
             break;
@@ -1372,10 +1387,11 @@ function _check_players_queue(pid) {
 
 function crystal_connect() {
     if _crystal_verify_init() {
-        if global.__socket != undefined && global.__is_connected {
+        if global.__is_connected {
             return;
         }
-        network_destroy(global.__socket);
+        if global.__socket != undefined
+            network_destroy(global.__socket);
         if os_browser == browser_not_a_browser
             global.__socket = network_create_socket(network_socket_tcp);
         else
