@@ -489,6 +489,7 @@ function _crystal_clear_disconnected() {
         buffer_delete(global.__buffered_receiver);
         global.__buffered_receiver = undefined;
     }
+    global.__last_ping = undefined;
 }
 
 function crystal_init(game_id) {
