@@ -430,7 +430,7 @@ function _buf_send(buf) {
             buffer_delete(buf);
             buf = tnbuf;
         }
-		//var event = buffer_peek(buf, 0, buffer_u8);
+		var event = buffer_peek(buf, 0, buffer_u8);
         _buf_write_leb_u64(nbuf, buffer_tell(buf));
         buffer_write(nbuf, buffer_u8, global.__compression);
         buffer_resize(nbuf, buffer_tell(nbuf) + buffer_tell(buf));
@@ -480,8 +480,15 @@ function _crystal_clear_disconnected() {
     array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
     array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
     array_delete(global.__callback_other_vari, 0, array_length(global.__callback_other_vari));
-    network_destroy(global.__socket);
-    global.__socket = undefined;
+    if global.__socket != undefined { // SAFETY: Don't try to destroy if it already got destroyed
+        network_destroy(global.__socket);
+        global.__socket = undefined;
+    }
+    global.__buffered_receiver_size = 0;
+    if global.__buffered_receiver != undefined {
+        buffer_delete(global.__buffered_receiver);
+        global.__buffered_receiver = undefined;
+    }
 }
 
 function crystal_init(game_id) {
