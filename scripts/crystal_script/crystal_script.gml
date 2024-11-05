@@ -1418,6 +1418,16 @@ function crystal_connect() {
         var __a = "server";
         var __b = ".";
         global.__async_network_id = network_connect_raw_async(global.__socket, __a + __b + "crystal-server.co", port);
+        if global.__async_network_id < 0 {
+            global.__is_connected = false;
+            global.__is_connecting = false;
+            if global.__call_disconnected {
+                if global.__script_disconnected != undefined
+                    global.__script_disconnected();
+                global.__call_disconnected = false;
+            }
+            _crystal_clear_disconnected();
+        }
         var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 0);
         buffer_write(b, buffer_u64, 0xf2b9c7a65420e78);
