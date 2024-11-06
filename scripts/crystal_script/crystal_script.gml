@@ -457,16 +457,11 @@ function _crystal_verify_init() {
     return variable_global_exists("__crystal_object");
 }
 
-function _crystal_clear_disconnected() {
+function _crystal_partial_clear_disconnected() {
     global.__player_name = "";
 	global.__player_id = -1;
 	global.__player_save = {};
     global.__player_open_save = "";
-    global.__game_save = {};
-    global.__game_open_save = "";
-    global.__game_achievements = {};
-    global.__game_highscores = {};
-    global.__game_adminstrators = {};
 	global.__players = {};
     global.__players_queue = {};
 	global.__is_loggedin = false;
@@ -477,15 +472,24 @@ function _crystal_clear_disconnected() {
 	array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
     array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
     array_delete(global.__update_vari, 0, array_length(global.__update_vari));
-    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
     array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
     array_delete(global.__callback_other_vari, 0, array_length(global.__callback_other_vari));
+}
+
+function _crystal_clear_disconnected() {
+    _crystal_partial_clear_disconnected();
+    global.__game_save = {};
+    global.__game_open_save = "";
+    global.__game_achievements = {};
+    global.__game_highscores = {};
+    global.__game_adminstrators = {};
+    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
     if global.__socket != undefined { // SAFETY: Don't try to destroy if it already got destroyed
         network_destroy(global.__socket);
         global.__socket = undefined;
     }
     global.__buffered_receiver_size = 0;
-    if global.__buffered_receiver != undefined {
+    if global.__buffered_receiver != undefined { // SAFETY: Don't try to destroy if it already got destroyed
         buffer_delete(global.__buffered_receiver);
         global.__buffered_receiver = undefined;
     }
@@ -1161,9 +1165,6 @@ function _handle_packet(buf) {
             global.__callback_other_vari[index] = undefined;
             break;
         case 16: // Banned / Kicked from the game
-            global.__call_disconnected = false;
-            global.__players = {};
-            global.__players_queue = {};
             var action = buffer_read(buf, buffer_u8);
             var reason = _buf_read_string(buf);
             switch action {
@@ -1181,8 +1182,7 @@ function _handle_packet(buf) {
                         global.__script_disconnected();
                     break;
             }
-            global.__is_connected = false;
-            _crystal_clear_disconnected();
+            _crystal_partial_clear_disconnected();
             break;
         case 17: // Request sync variable of another player
             _player_id = _buf_read_leb_u64(buf);
@@ -2079,7 +2079,7 @@ function crystal_logout() {
 		var b = buffer_create(0, buffer_grow, 1);
         buffer_write(b, buffer_u8, 18);
         _buf_send(b);
-		_crystal_clear_disconnected();
+		_crystal_partial_clear_disconnected();
 		return true;
 	}
 	return false;
