@@ -465,6 +465,8 @@ function _crystal_partial_clear_disconnected() {
 	global.__players = {};
     global.__players_queue = {};
 	global.__is_loggedin = false;
+	global.__is_connecting = false;
+	global.__is_connected = false;
 	array_delete(global.__players_logout, 0, array_length(global.__players_logout));
 	for (var i = 0; i < array_length(global.__buffered_data); i++) {
         buffer_delete(global.__buffered_data[i]);
@@ -680,7 +682,15 @@ function crystal_async_networking() {
             switch async_load[? "type"] {
                 case network_type_non_blocking_connect:
                     global.__is_connecting = false;
-                    global.__is_connected = async_load[? "succeeded"] == true;
+                    global.__is_connected = async_load[? "succeeded"];
+					if !global.__is_connected {
+						if global.__call_disconnected {
+	                        if global.__script_disconnected != undefined
+	                            global.__script_disconnected();
+	                        global.__call_disconnected = false;
+	                    }
+	                    _crystal_clear_disconnected();
+					}
                     break;
                 case network_type_disconnect:
                     global.__is_connected = false;
