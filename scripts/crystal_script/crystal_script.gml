@@ -1447,10 +1447,6 @@ function crystal_connect() {
 
 function crystal_disconnect() {
     network_destroy(global.__socket);
-    if os_browser == browser_not_a_browser
-        global.__socket = network_create_socket(network_socket_tcp);
-    else
-        global.__socket = network_create_socket(network_socket_ws);
     global.__is_connected = false;
     global.__is_connecting = false;
     _crystal_clear_disconnected();
