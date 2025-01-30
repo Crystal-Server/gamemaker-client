@@ -1,0 +1,14 @@
+[package]
+name = "crystal_dll"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+base64 = "0.22.1"
+crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "5af47881e7220863cd12e241b1f9dc41b9618836" }
+futures-util = "0.3.31"
+parking_lot = "0.12.3"
+tokio = { features = ["full"], version = "1.43.0" }

@@ -1,9 +1,9 @@
-enum CompressionType {
+/*enum CompressionType {
     None = 0,
     Zstd = 1,
     Gzip = 2,
     Zlib = 3,
-}
+}*/
 
 enum LoginResult {
     OK = 0,
@@ -70,8 +70,6 @@ global.__game_token = "";
 global.__current_room = "";
 global.__async_network_id = -1;
 
-global.__enable_compression = false;
-
 global.__script_room = undefined;
 global.__script_p2p = undefined;
 global.__script_register = undefined;
@@ -110,54 +108,144 @@ global.__update_gameini = [];
 global.__update_playerini = [];
 global.__callback_other_vari = [];
 global.__call_disconnected = true;
-global.__compression = CompressionType.None;
-global.__is_queued = false;
 
-global.__expected_packet_size = -1;
-global.__expected_compression_type = undefined;
 global.__streamed_data = undefined;
 global.__buffered_receiver = undefined;
 global.__buffered_receiver_size = 0;
 global.__handshake_completed = false;
+
+global.__encrypt = [
+	// Read
+	{
+		"key": int64(0),
+		"write_key": int64(0),
+		"salt": int64(0),
+		"current_byte": int64(0),
+		"algorithm": int64(0),
+		"reset_on": int64(0),
+		"current": int64(0),
+		"current_packet": int64(0),
+	},
+	// Write
+	{
+		"key": int64(0),
+		"write_key": int64(0),
+		"salt": int64(0),
+		"current_byte": int64(0),
+		"algorithm": int64(0),
+		"reset_on": int64(0),
+		"current": int64(0),
+		"current_packet": int64(0),
+	},
+];
+global.__recv_encrypt = false;
+
+#macro __ENCRYPT_READ 0
+#macro __ENCRYPT_WRITE 1
+
+function _encrypt_start(index) {
+	/*var e = global.__encrypt[index];
+	e.current_byte = 0;
+	e.current += 1;
+	if e.current >= e.reset_on {
+		e.current = 0;
+		e.current_packet += 1;
+		e.key = _encrypt_generate_next_batch(index, e.key, e.current_packet);
+	}
+	e.write_key = _encrypt_generate_next_batch(index, e.key, int64(e.current_packet));
+    show_debug_message("{0}->{1}", index, e);*/
+}
+
+function _encrypt_next_byte(index) {
+	return 0x01;
+	/*var e = global.__encrypt[index];
+	e.current_byte += 1;
+	if e.current_byte != 0 && e.current_byte & 7 == 0
+		e.write_key = _encrypt_generate_next_batch(index, e.write_key, int64(e.current_packet) + int64(e.current_byte));
+	return (e.write_key >> (((8 - (e.current_byte & 7)) - 1) * 8)) & 0xff;*/
+}
+
+function _encrypt_next_batch(index) {
+	return 0x0102030405060708;
+	/*var e = global.__encrypt[index];
+	e.current_byte += 1;
+	e.write_key = _encrypt_generate_next_batch(index, e.write_key, int64(e.current_packet) + int64(e.current_byte));
+	return e.write_key;*/
+}
+
+/*function _encrypt_generate_next_batch(index, current_key, position) {
+	var e = global.__encrypt[index];
+	current_key += e.salt;
+	//e.salt = ((e.salt + position) * 0x9e3779b97f4a7c15) ^ _encrypt_rotate_right(e.salt, 16);
+	e.salt = (e.salt + position) ^ _encrypt_rotate_right(e.salt, 16);
+	//e.salt += position;
+	switch e.algorithm {
+		case 0:
+			return _encrypt_rotate_left((current_key + position), position & 0x3f);
+		case 1:
+			return _encrypt_rotate_left(current_key ^ (current_key + position), position & 0x3f);
+		case 2:
+			return int64((current_key ^ _encrypt_rotate_left(current_key, position & 0x3f)) + position);
+		case 3:
+			return int64(~_encrypt_rotate_left(current_key ^ position, position & 0x3f) ^ current_key);
+		case 4:
+			return int64((_encrypt_rotate_left(current_key ^ position, 7) ^ current_key) + position);
+	}
+	return undefined;
+}*/
+
+/*function _encrypt_rotate_left(num, shift, bits = 64) {
+	shift = shift % bits;
+	return int64((num << shift) | (num >> (bits - shift)));
+}
+
+function _encrypt_rotate_right(num, shift, bits = 64) {
+	shift = shift % bits;
+	return int64((num >> shift) | (num << (bits - shift)));
+}*/
 
 function _buf_write_leb_u64(buf, val) {
     while true {
         var n = val & 0x7f;
         val = val >> 7;
         if val == 0 {
-            buffer_write(buf, buffer_u8, n);
+            _buf_write(buf, buffer_u8, n);
             break;
         } else {
-            buffer_write(buf, buffer_u8, n | 0x80);
+            _buf_write(buf, buffer_u8, n | 0x80);
         }
     }
 }
 
 function _buf_write_i64(buf, val) {
-    buffer_write(buf, buffer_u64, int64(val)); // Hacky conversion, it mostly works
+    _buf_write(buf, buffer_u64, int64(val)); // Hacky conversion, it mostly works
 }
 
 function _buf_write_bool(buf, val) {
-    buffer_write(buf, buffer_u8, real(val));
+    _buf_write(buf, buffer_u8, real(val));
 }
 
 function _buf_write_string(buf, val) {
     _buf_write_leb_u64(buf, string_byte_length(val));
-    buffer_write(buf, buffer_text, val);
+    //buffer_write(buf, buffer_text, val);
+	for (var i = 1; i <= string_byte_length(val); i++)
+		_buf_write(buf, buffer_u8, int64(string_byte_at(val, i)));
 }
 
 function _buf_write_bytes(buf, val) {
     _buf_write_leb_u64(buf, buffer_tell(val));
-    buffer_resize(buf, buffer_tell(buf) + buffer_tell(val));
+	for (var i = 0; i < buffer_tell(val); i++)
+		_buf_write(buf, buffer_u8, buffer_peek(val, i, buffer_u8));
+    /*buffer_resize(buf, buffer_tell(buf) + buffer_tell(val));
     buffer_copy(val, 0, buffer_tell(val), buf, buffer_tell(buf));
-    buffer_seek(buf, buffer_seek_relative, buffer_tell(val));
+    buffer_seek(buf, buffer_seek_relative, buffer_tell(val));*/
 }
 
 function _buf_read_leb_u64(buf) {
     var num = 0;
     var shift = 0;
     while true {
-        var val = buffer_read(buf, buffer_u8);
+        var val = _buf_read(buf, buffer_u8);
         num |= (val & 0x7f) << shift;
         if val & 0x80 == 0 {
             break;
@@ -168,11 +256,11 @@ function _buf_read_leb_u64(buf) {
 }
 
 function _buf_read_i64(buf) {
-	return int64(buffer_read(buf, buffer_u64)); // Least hacky GameMaker thing ever
+	return int64(_buf_read(buf, buffer_u64)); // Least hacky GameMaker thing ever
 }
 
 function _buf_read_bool(buf) {
-    return buffer_read(buf, buffer_u8) != 0;
+    return _buf_read(buf, buffer_u8) != 0;
 }
 
 function _buf_read_string(buf) {
@@ -182,6 +270,8 @@ function _buf_read_string(buf) {
     var rbuf = buffer_create(size, buffer_fixed, 1);
     buffer_copy(buf, buffer_tell(buf), size, rbuf, 0);
     buffer_seek(buf, buffer_seek_relative, size);
+    for (var i = 0; i < size; i++)
+        buffer_poke(buf, i, buffer_u8, buffer_peek(buf, i, buffer_u8) ^ _encrypt_next_byte(__ENCRYPT_WRITE));
     var res = buffer_read(rbuf, buffer_text);
     buffer_delete(rbuf);
     return res;
@@ -190,8 +280,10 @@ function _buf_read_string(buf) {
 function _buf_read_bytes(buf) {
     var size = _buf_read_leb_u64(buf);
     var rbuf = buffer_create(size, buffer_fixed, 1);
-    buffer_copy(buf, buffer_tell(buf), size, rbuf, 0);
+    buffer_copy(buf, buffer_tell(buf), size, rbuf, 0); 
     buffer_seek(buf, buffer_seek_relative, size);
+    for (var i = 0; i < size; i++)
+        buffer_poke(buf, i, buffer_u8, buffer_peek(buf, i, buffer_u8) ^ _encrypt_next_byte(__ENCRYPT_WRITE));
     return rbuf;
 }
 
@@ -248,67 +340,102 @@ function _buf_write_array(buf, val) {
     }
 }
 
+function _buf_encrypt(type, val, _type = __ENCRYPT_READ) {
+	switch type {
+		case buffer_u8:
+		case buffer_s8:
+			return val ^ _encrypt_next_byte(_type);
+		case buffer_u16:
+		case buffer_s16:
+			return val ^ (_encrypt_next_batch(_type) & 0xffff);
+		case buffer_u32:
+		case buffer_s32:
+			return val ^ (_encrypt_next_batch(_type) & 0xffffffff);
+		case buffer_u64:
+			return val ^ _encrypt_next_batch(_type);
+		case buffer_f16:
+			return val ^ (_encrypt_next_batch(_type) & 0xffff);
+		case buffer_f32:
+			return val ^ (_encrypt_next_batch(_type) & 0xffffffff);
+		case buffer_f64:
+			return val ^ _encrypt_next_batch(_type);
+		default:
+			show_error("Unsupported type: " + string(type), true);
+			break;
+	}
+}
+
+function _buf_read(buf, type) {
+    if !global.__recv_encrypt
+        return buffer_read(buf, type);
+	return _buf_encrypt(type, buffer_read(buf, type));
+}
+
+function _buf_write(buf, type, value) {
+	return buffer_write(buf, type, _buf_encrypt(type, value, __ENCRYPT_WRITE));
+}
+
 function _buf_write_value(buf, val) {
     switch typeof(val) {
         case "undefined":
         case "null":
-            buffer_write(buf, buffer_u8, 0);
+            _buf_write(buf, buffer_u8, 0);
             break;
         case "bool":
-            buffer_write(buf, buffer_u8, 1);
+            _buf_write(buf, buffer_u8, 1);
             _buf_write_bool(buf, val);
             break;
         case "int32":
         case "int64":
-            buffer_write(buf, buffer_u8, 2);
+            _buf_write(buf, buffer_u8, 2);
             _buf_write_i64(buf, int64(val));
             break;
         case "number":
-            buffer_write(buf, buffer_u8, 3);
-            buffer_write(buf, buffer_f64, val);
+            _buf_write(buf, buffer_u8, 3);
+            _buf_write(buf, buffer_f64, val);
             break;
         case "string":
-            buffer_write(buf, buffer_u8, 4);
+            _buf_write(buf, buffer_u8, 4);
             _buf_write_string(buf, val);
             break;
         case "array":
-            buffer_write(buf, buffer_u8, 5);
+            _buf_write(buf, buffer_u8, 5);
             _buf_write_array(buf, val);
             break;
         case "struct":
-            buffer_write(buf, buffer_u8, 6);
+            _buf_write(buf, buffer_u8, 6);
             _buf_write_struct(buf, val);
             break;
         case "ref":
             if buffer_exists(val) {
-                buffer_write(buf, buffer_u8, 7);
+                _buf_write(buf, buffer_u8, 7);
                 _buf_write_bytes(buf, val);
             } else if ds_exists(val, ds_type_list) {
-                buffer_write(buf, buffer_u8, 5);
+                _buf_write(buf, buffer_u8, 5);
                 _buf_write_list(buf, val);
             } else if ds_exists(val, ds_type_map) {
-                buffer_write(buf, buffer_u8, 6);
+                _buf_write(buf, buffer_u8, 6);
                 _buf_write_map(buf, val);
             } else {
                 show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-                buffer_write(buf, buffer_u8, 0);
+                _buf_write(buf, buffer_u8, 0);
             }
             break;
         default:
             show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-            buffer_write(buf, buffer_u8, 0);
+            _buf_write(buf, buffer_u8, 0);
             break;
     }
 }
 
 function _buf_read_value(buf) {
-    switch buffer_read(buf, buffer_u8) {
+    switch _buf_read(buf, buffer_u8) {
         case 1:
             return _buf_read_bool(buf);
         case 2:
             return _buf_read_i64(buf);
         case 3:
-            return buffer_read(buf, buffer_f64);
+            return _buf_read(buf, buffer_f64);
         case 4:
             return _buf_read_string(buf);
         case 5:
@@ -330,8 +457,8 @@ function _buf_write_syncs(buf, val) {
             _buf_write_bool(buf, false);
         } else {
             _buf_write_bool(buf, true);
-            buffer_write(buf, buffer_s16, sync.kind);
-            buffer_write(buf, buffer_u8, sync.type);
+            _buf_write(buf, buffer_s16, sync.kind);
+            _buf_write(buf, buffer_u8, sync.type);
             _buf_write_struct(buf, sync.variables);
         }
     }
@@ -343,8 +470,8 @@ function _buf_read_syncs(buf) {
     repeat size {
         if _buf_read_bool(buf) {
             var sync = _create_sync();
-            sync.kind = buffer_read(buf, buffer_s16);
-            sync.type = buffer_read(buf, buffer_u8);
+            sync.kind = _buf_read(buf, buffer_s16);
+            sync.type = _buf_read(buf, buffer_u8);
             sync.variables = _buf_read_struct(buf);
             array_push(val, sync);
         } else {
@@ -358,15 +485,14 @@ function _buf_read_achievements(buf) {
     var val = {};
     var size = _buf_read_leb_u64(buf);
     repeat size {
-        var name = buffer_read(buf, buffer_u64);
+        var name = _buf_read_leb_u64(buf);
         var achi = _create_achievement();
-        achi.id = _buf_read_leb_u64(buf);
         achi.name = _buf_read_string(buf);
         achi.description = _buf_read_string(buf);
         var players = {};
         var psize = _buf_read_leb_u64(buf);
         repeat psize {
-            var pname = buffer_read(buf, buffer_u64);
+            var pname = _buf_read(buf, buffer_u64);
             players[$ pname] = _buf_read_i64(buf);
         }
         achi.players = players;
@@ -379,15 +505,14 @@ function _buf_read_highscores(buf) {
     var val = {};
     var size = _buf_read_leb_u64(buf);
     repeat size {
-        var name = buffer_read(buf, buffer_u64);
+        var name = _buf_read_leb_u64(buf);
         var hsc = _create_highscore();
-        hsc.id = _buf_read_leb_u64(buf);
         hsc.name = _buf_read_string(buf);
         var scores = {};
         var psize = _buf_read_leb_u64(buf);
         repeat psize {
-            var sname = buffer_read(buf, buffer_u64);
-            scores[$ sname] = buffer_read(buf, buffer_f64);
+            var sname = _buf_read(buf, buffer_u64);
+            scores[$ sname] = _buf_read(buf, buffer_f64);
         }
         hsc.scores = scores;
         val[$ name] = hsc;
@@ -399,9 +524,8 @@ function _buf_read_administrators(buf) {
     var val = {};
     var size = _buf_read_leb_u64(buf);
     repeat size {
-        var name = buffer_read(buf, buffer_u64);
+        var name = _buf_read_leb_u64(buf);
         var admin = _create_administrator();
-        admin.id = _buf_read_leb_u64(buf);
         admin.can_kick = _buf_read_bool(buf);
         admin.can_ban = _buf_read_bool(buf);
         admin.can_unban = _buf_read_bool(buf);
@@ -423,22 +547,22 @@ function _iter_buffered_data() {
 function _buf_send(buf) {
     if global.__is_connected {
         var nbuf = buffer_create(0, buffer_grow, 1);
-        if global.__compression == CompressionType.Zlib {
+        /*if global.__compression == CompressionType.Zlib {
             var pos = buffer_tell(buf);
             var tnbuf = buffer_compress(buf, 0, pos);
             buffer_seek(tnbuf, buffer_seek_end, 0); // Maybe?
             buffer_delete(buf);
             buf = tnbuf;
-        }
+        }*/
 		var event = buffer_peek(buf, 0, buffer_u8);
-        _buf_write_leb_u64(nbuf, buffer_tell(buf));
-        buffer_write(nbuf, buffer_u8, global.__compression);
+        //_buf_write_leb_u64(nbuf, buffer_tell(buf));
+        //buffer_write(nbuf, buffer_u8, global.__compression);
         buffer_resize(nbuf, buffer_tell(nbuf) + buffer_tell(buf));
         buffer_copy(buf, 0, buffer_tell(buf), nbuf, buffer_tell(nbuf));
         var r = network_send_raw(global.__socket, nbuf, buffer_tell(nbuf) + buffer_tell(buf));
         buffer_delete(buf);
         buffer_delete(nbuf);
-        //show_debug_message("{1}->Sent {0} byte(s)", r, event);
+        show_debug_message("{1}->Sent {0} byte(s)", r, event);
 		if r < 0 {
 			global.__is_connected = false;
             if global.__call_disconnected {
@@ -448,9 +572,8 @@ function _buf_send(buf) {
             }
             _crystal_clear_disconnected();
 		}
-    } else {
+    } else
         array_push(global.__buffered_data, buf);
-    }
 }
 
 function _crystal_verify_init() {
@@ -566,59 +689,64 @@ function crystal_step() {
                 _iter_buffered_data();
                 if r != global.__current_room {
                     var b = buffer_create(0, buffer_grow, 1);
-                    buffer_write(b, buffer_u8, 11);
+					_encrypt_start(__ENCRYPT_WRITE);
+                    _buf_write(b, buffer_u8, 11);
                     _buf_write_string(b, r);
                     _buf_send(b);
                     global.__current_room = r;
                 }
                 if array_length(global.__syncs) > 0 || array_length(global.__syncs_remove) > 0 {
-                    var b = buffer_create(0, buffer_grow, 1);
                     var insts_iter = 0;
-                    for (var i = 0; i < array_length(global.__syncs_remove); i++) {
-                        buffer_write(b, buffer_s16, global.__syncs_remove[i]);
-                        _buf_write_bool(b, true);
-                        insts_iter++;
-                    }
-    				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
-                    for (var i = 0; i < array_length(global.__syncs); i++) {
-                        var sync = global.__syncs[i];
-                        if sync != undefined {
-                            if array_length(sync.to_sync) > 0 {
-                                buffer_write(b, buffer_s16, i);
-                                _buf_write_bool(b, false);
-                                _buf_write_leb_u64(b, array_length(sync.to_sync));
-                                for (var ii = 0; ii < array_length(sync.to_sync); ii++) {
-                                    var to_sync = sync.to_sync[ii];
-                                    _buf_write_string(b, to_sync);
-                                    if struct_exists(sync.variables, to_sync)
-                                        _buf_write_value(b, sync.variables[$ to_sync])
-                                    else
-                                        buffer_write(b, buffer_u8, 0xff);
-                                }
-                                sync.to_sync = [];
-                                insts_iter++;
-                            }
-                        }
-                    }
+					for (var i = 0; i < array_length(global.__syncs_remove); i++)
+	                    insts_iter++;
+	                for (var i = 0; i < array_length(global.__syncs); i++) {
+	                    var sync = global.__syncs[i];
+	                    if sync != undefined {
+	                        if array_length(sync.to_sync) > 0
+	                            insts_iter++;
+	                    }
+	                }
                     if insts_iter > 0 {
-                        var tb = buffer_create(0, buffer_grow, 1);
-                        buffer_write(tb, buffer_u8, 13);
-                        _buf_write_leb_u64(tb, insts_iter);
-                        buffer_resize(tb, buffer_tell(tb) + buffer_tell(b));
-                        buffer_copy(b, 0, buffer_tell(b), tb, buffer_tell(tb));
-    					buffer_seek(tb, buffer_seek_relative, buffer_tell(b));
-                        _buf_send(tb);
+						_encrypt_start(__ENCRYPT_WRITE);
+                        var b = buffer_create(0, buffer_grow, 1);
+                        _buf_write(b, buffer_u8, 13);
+                        _buf_write_leb_u64(b, insts_iter);
+						for (var i = 0; i < array_length(global.__syncs_remove); i++) {
+	                        _buf_write(b, buffer_s16, global.__syncs_remove[i]);
+	                        _buf_write_bool(b, true);
+	                    }
+	    				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
+	                    for (var i = 0; i < array_length(global.__syncs); i++) {
+	                        var sync = global.__syncs[i];
+	                        if sync != undefined {
+	                            if array_length(sync.to_sync) > 0 {
+	                                _buf_write(b, buffer_s16, i);
+	                                _buf_write_bool(b, false);
+	                                _buf_write_leb_u64(b, array_length(sync.to_sync));
+	                                for (var ii = 0; ii < array_length(sync.to_sync); ii++) {
+	                                    var to_sync = sync.to_sync[ii];
+	                                    _buf_write_string(b, to_sync);
+	                                    if struct_exists(sync.variables, to_sync)
+	                                        _buf_write_value(b, sync.variables[$ to_sync])
+	                                    else
+	                                        _buf_write(b, buffer_u8, 0xff);
+	                                }
+	                                sync.to_sync = [];
+	                            }
+	                        }
+	                    }
+                        _buf_send(b);
                     }
-                    buffer_delete(b);
                 }
                 if array_length(global.__new_sync_queue) > 0 {
                     for (var i = 0; i < array_length(global.__new_sync_queue); i++) {
                         var s = global.__new_sync_queue[i];
+						_encrypt_start(__ENCRYPT_WRITE);
                         var b = buffer_create(0, buffer_grow, 1);
-                        buffer_write(b, buffer_u8, 12);
-                        buffer_write(b, buffer_u16, s.slot);
-                        buffer_write(b, buffer_s16, s.kind);
-                        buffer_write(b, buffer_u8, s.type);
+                        _buf_write(b, buffer_u8, 12);
+                        _buf_write(b, buffer_u16, s.slot);
+                        _buf_write(b, buffer_s16, s.kind);
+                        _buf_write(b, buffer_u8, s.type);
                         _buf_write_struct(b, global.__syncs[s.slot].variables);
                         _buf_send(b);
                         global.__syncs[s.slot].to_sync = [];
@@ -626,14 +754,15 @@ function crystal_step() {
                     array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
                 }
                 if array_length(global.__update_vari) > 0 {
+					_encrypt_start(__ENCRYPT_WRITE);
                     var b = buffer_create(0, buffer_grow, 1);
-                    buffer_write(b, buffer_u8, 7);
+                    _buf_write(b, buffer_u8, 7);
                     _buf_write_leb_u64(b, array_length(global.__update_vari));
                     for (var i = 0; i < array_length(global.__update_vari); i++) {
                         var u = global.__update_vari[i];
                         _buf_write_string(b, u.name);
                         if u.removed
-                            buffer_write(b, buffer_u8, 0xff);
+                            _buf_write(b, buffer_u8, 0xff);
                         else
                             _buf_write_value(b, u.value);
                     }
@@ -641,14 +770,15 @@ function crystal_step() {
     				_buf_send(b);
                 }
                 if array_length(global.__update_gameini) > 0 {
+					_encrypt_start(__ENCRYPT_WRITE);
                     var b = buffer_create(0, buffer_grow, 1);
-                    buffer_write(b, buffer_u8, 9);
+                    _buf_write(b, buffer_u8, 9);
                     _buf_write_leb_u64(b, array_length(global.__update_gameini));
                     for (var i = 0; i < array_length(global.__update_gameini); i++) {
                         var u = global.__update_gameini[i];
                         _buf_write_string(b, u.name);
                         if u.removed
-                            buffer_write(b, buffer_u8, 0xff);
+                            _buf_write(b, buffer_u8, 0xff);
                         else
                             _buf_write_value(b, u.value);
                     }
@@ -656,14 +786,15 @@ function crystal_step() {
                     _buf_send(b);
                 }
                 if array_length(global.__update_playerini) > 0 {
+					_encrypt_start(__ENCRYPT_WRITE);
                     var b = buffer_create(0, buffer_grow, 1);
-                    buffer_write(b, buffer_u8, 10);
+                    _buf_write(b, buffer_u8, 10);
                     _buf_write_leb_u64(b, array_length(global.__update_playerini));
                     for (var i = 0; i < array_length(global.__update_playerini); i++) {
                         var u = global.__update_playerini[i];
                         _buf_write_string(b, u.name);
                         if u.removed
-                            buffer_write(b, buffer_u8, 0xff);
+                            _buf_write(b, buffer_u8, 0xff);
                         else
                             _buf_write_value(b, u.value);
                     }
@@ -676,7 +807,7 @@ function crystal_step() {
 }
 
 function crystal_async_networking() {
-	//show_debug_message(json_encode(async_load));
+	show_debug_message(json_encode(async_load));
     if _crystal_verify_init() {
         if async_load[? "id"] == global.__socket {
             switch async_load[? "type"] {
@@ -702,88 +833,7 @@ function crystal_async_networking() {
                     _crystal_clear_disconnected();
                     break;
                 case network_type_data:
-                    var buf = async_load[? "buffer"];
-                    var size = async_load[? "size"];
-                    if global.__buffered_receiver == undefined
-                        global.__buffered_receiver = buffer_create(size, buffer_grow, 1);
-                    buffer_resize(global.__buffered_receiver, global.__buffered_receiver_size + size);
-                    buffer_copy(buf, 0, size, global.__buffered_receiver, global.__buffered_receiver_size);
-                    global.__buffered_receiver_size += size;
-                    while true {
-                        if global.__buffered_receiver_size == 0 {
-                            //show_debug_message("Receiver payload finished. Waiting for more packets.");
-                            break;
-                        }
-                        var offset = buffer_tell(global.__buffered_receiver);
-                        if global.__expected_packet_size == -1 {
-                            global.__expected_packet_size = 0;
-                            var shift = 0;
-                            var ret = false;
-                            while true {
-                                if buffer_tell(global.__buffered_receiver) + 1 > global.__buffered_receiver_size {
-                                    //show_debug_message("Incomplete LEB128 header, waiting...");
-                                    ret = true;
-                                    break;
-                                }
-                                var val = buffer_read(global.__buffered_receiver, buffer_u8);
-                                global.__expected_packet_size |= (val & 0x7f) << shift;
-                                if val & 0x80 == 0
-                                    break;
-                                shift += 7;
-                            }
-                            if ret {
-                                global.__expected_packet_size = -1;
-                                global.__expected_compression_type = -1;
-                                buffer_seek(global.__buffered_receiver, buffer_seek_start, offset);
-                                break;
-                            }
-                            if buffer_tell(global.__buffered_receiver) + 1 > global.__buffered_receiver_size {
-                                //show_debug_message("Incomplete decompression header, waiting...");
-                                global.__expected_packet_size = -1;
-                                global.__expected_compression_type = -1;
-                                buffer_seek(global.__buffered_receiver, buffer_seek_start, offset);
-                                break;
-                            } else
-                                global.__expected_compression_type = buffer_read(global.__buffered_receiver, buffer_u8);
-                        }
-                        if global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver) >= global.__expected_packet_size - 1 && global.__expected_packet_size > 0 {
-                            global.__streamed_data = buffer_create(global.__expected_packet_size - 1, buffer_fixed, 1);
-                            buffer_copy(global.__buffered_receiver, buffer_tell(global.__buffered_receiver), global.__expected_packet_size, global.__streamed_data, 0);
-                            var copy_offset = buffer_tell(global.__buffered_receiver) + (global.__expected_packet_size - 1);
-                            var copy_size = buffer_get_size(global.__buffered_receiver) - copy_offset;
-                            var temp = buffer_create(copy_size, buffer_fixed, 1);
-                            buffer_copy(global.__buffered_receiver, copy_offset, copy_size, temp, 0);
-                            buffer_copy(temp, 0, copy_size, global.__buffered_receiver, offset);
-                            buffer_delete(temp);
-                            global.__buffered_receiver_size -= (global.__expected_packet_size - 1) + (buffer_tell(global.__buffered_receiver) - offset);
-                            buffer_resize(global.__buffered_receiver, global.__buffered_receiver_size);
-                            buffer_seek(global.__buffered_receiver, buffer_seek_start, offset);
-                            switch global.__expected_compression_type {
-                                case CompressionType.None:
-                                    // This won't execute anything else.
-                                    break;
-                                case CompressionType.Zstd:
-                                    show_debug_message("Unsupported compression \"ZSTD\"");
-                                    break;
-                                case CompressionType.Gzip:
-                                    show_debug_message("Unsupported compression \"GZIP\"");
-                                    break;
-                                case CompressionType.Zlib:
-                                    var decompressed = buffer_decompress(global.__streamed_data);
-                                    buffer_delete(global.__streamed_data);
-                                    global.__streamed_data = decompressed;
-                                    break;
-                            }
-                            global.__expected_packet_size = -1;
-                            global.__expected_compression_type = -1;
-                            buffer_seek(global.__streamed_data, buffer_seek_start, 0);
-                            _handle_packet(global.__streamed_data);
-                            buffer_delete(global.__streamed_data);
-                        } else {
-                            //show_debug_message("Incomplete data payload, waiting... Expected {0} byte(s), but got {1} byte(s)", global.__expected_packet_size, global.__buffered_receiver_size - buffer_tell(global.__buffered_receiver));
-                            break;
-                        }
-                    }
+                    _handle_packet(async_load[? "buffer"]);
                     break;
             }
         }
@@ -851,7 +901,6 @@ function _create_synciter() {
 
 function _create_administrator() {
     return {
-        "id": -1,
         "can_kick": false,
         "can_ban": false,
         "can_unban": false,
@@ -896,7 +945,6 @@ function _create_player() {
 
 function _create_achievement() {
     return {
-        "id": -1,
         "name": "",
         "description": "",
         "players": {},
@@ -905,7 +953,6 @@ function _create_achievement() {
 
 function _create_highscore() {
     return {
-        "id": -1,
         "name": "",
         "scores": {},
     };
@@ -938,15 +985,18 @@ function _create_variablequeue() {
 }
 
 function _handle_packet(buf) {
-    //show_debug_message("Handling event {0}...", buffer_peek(buf, 0, buffer_u8));
-    switch buffer_read(buf, buffer_u8) {
+    if global.__recv_encrypt
+        _encrypt_start(__ENCRYPT_READ);
+    var event = _buf_read(buf, buffer_u8);
+    show_debug_message("Handling event {0}...", event);
+    switch event {
         case 0: // Registration
-            var code = buffer_read(buf, buffer_u8);
+            var code = _buf_read(buf, buffer_u8);
             if global.__script_register != undefined
                 global.__script_register(code);
             break;
         case 1: // Login
-            code = buffer_read(buf, buffer_u8);
+            code = _buf_read(buf, buffer_u8);
             var token = "";
             switch code {
                 case LoginResult.OK:
@@ -994,13 +1044,13 @@ function _handle_packet(buf) {
             global.__game_achievements = _buf_read_achievements(buf);
             global.__game_highscores = _buf_read_highscores(buf);
             global.__game_adminstrators = _buf_read_administrators(buf);
-            global.__game_version = buffer_read(buf, buffer_f64);
+            global.__game_version = _buf_read(buf, buffer_f64);
             global.__handshake_completed = true;
             global.__last_ping = get_timer();
             break;
         case 5: // P2P
             _player_id = _buf_read_leb_u64(buf);
-            var message_id = buffer_read(buf, buffer_u16);
+            var message_id = _buf_read(buf, buffer_u16);
             var arr = _buf_read_array(buf);
             if global.__script_p2p != undefined
                 global.__script_p2p(message_id, _player_id, arr);
@@ -1011,7 +1061,7 @@ function _handle_packet(buf) {
             var amount = _buf_read_leb_u64(buf);
             for (var i = 0; i < amount; i++) {
                 name = _buf_read_string(buf);
-                var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
                 buffer_seek(buf, buffer_seek_relative, -1);
                 var value = _buf_read_value(buf);
                 if struct_exists(global.__players, _player_id) {
@@ -1035,14 +1085,15 @@ function _handle_packet(buf) {
             }
             break;
         case 7: // Ping
-            switch buffer_read(buf, buffer_u8) {
+            switch _buf_read(buf, buffer_u8) {
                 case 0:
+					_encrypt_start(__ENCRYPT_WRITE);
                     var wb = buffer_create(0, buffer_grow, 1);
-                    buffer_write(wb, buffer_u8, 8);
+                    _buf_write(wb, buffer_u8, 8);
                     _buf_send(wb);
                     break;
                 case 1:
-                    global.__ping = buffer_read(buf, buffer_f64);
+                    global.__ping = _buf_read(buf, buffer_f64);
                     global.__last_ping = get_timer();
                     break;
             }
@@ -1055,7 +1106,7 @@ function _handle_packet(buf) {
             var size = _buf_read_leb_u64(buf);
             repeat size {
                 name = _buf_read_string(buf);
-                var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
                 buffer_seek(buf, buffer_seek_relative, -1);
                 var vari = _buf_read_value(buf);
                 if remove_vari
@@ -1066,9 +1117,9 @@ function _handle_packet(buf) {
             break;
         case 10: // New sync
             _player_id = _buf_read_leb_u64(buf);
-            var slot = buffer_read(buf, buffer_u16);
-            var kind = buffer_read(buf, buffer_s16);
-            var type = buffer_read(buf, buffer_u8);
+            var slot = _buf_read(buf, buffer_u16);
+            var kind = _buf_read(buf, buffer_s16);
+            var type = _buf_read(buf, buffer_u8);
             variables = _buf_read_struct(buf);
             if struct_exists(global.__players, _player_id) {
                 _iter_missing_data(_player_id);
@@ -1106,7 +1157,7 @@ function _handle_packet(buf) {
             syncs = struct_exists(global.__players, _player_id) ? global.__players[$ _player_id].syncs : [];
             amount = _buf_read_leb_u64(buf);
             for (var i = 0; i < amount; i++) {
-                slot = buffer_read(buf, buffer_u16);
+                slot = _buf_read(buf, buffer_u16);
                 if _buf_read_bool(buf) { // Remove sync
                     if slot >= array_length(syncs) || syncs[slot] == undefined {
                         _check_players_queue(_player_id);
@@ -1117,7 +1168,7 @@ function _handle_packet(buf) {
                     var amount1 = _buf_read_leb_u64(buf);
                     for (var ii = 0; ii < amount1; ii++) {
                         name = _buf_read_string(buf);
-                        var remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                        var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
                         buffer_seek(buf, buffer_seek_relative, -1);
                         var value = _buf_read_value(buf);
                         if slot >= array_length(syncs) || syncs[slot] == undefined {
@@ -1141,7 +1192,7 @@ function _handle_packet(buf) {
         case 13: // Highscore update
             var highscore_id = _buf_read_leb_u64(buf);
             var highscore_user = _buf_read_leb_u64(buf);
-            var highscore_score = buffer_read(buf, buffer_f64);
+            var highscore_score = _buf_read(buf, buffer_f64);
             if !struct_exists(global.__game_highscores, highscore_id) {
                 var highscore = _create_highscore();
                 highscore.id = highscore_id;
@@ -1161,7 +1212,7 @@ function _handle_packet(buf) {
             break;
         case 15: // Request variable from another player
             _player_id = _buf_read_leb_u64(buf);
-            var index = buffer_read(buf, buffer_u16);
+            var index = _buf_read(buf, buffer_u16);
             if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
                 return;
             var callback = global.__callback_other_vari[index];
@@ -1175,7 +1226,7 @@ function _handle_packet(buf) {
             global.__callback_other_vari[index] = undefined;
             break;
         case 16: // Banned / Kicked from the game
-            var action = buffer_read(buf, buffer_u8);
+            var action = _buf_read(buf, buffer_u8);
             var reason = _buf_read_string(buf);
             switch action {
                 case 0: // Banned
@@ -1196,7 +1247,7 @@ function _handle_packet(buf) {
             break;
         case 17: // Request sync variable of another player
             _player_id = _buf_read_leb_u64(buf);
-            index = buffer_read(buf, buffer_u16);
+            index = _buf_read(buf, buffer_u16);
             _iter_missing_data(_player_id);
             if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
                 return;
@@ -1204,7 +1255,7 @@ function _handle_packet(buf) {
             name = callback[0];
             func = callback[1];
             slot = callback[2];
-            var remove_vari = buffer_read(buf, buffer_u8);
+            var remove_vari = _buf_read(buf, buffer_u8);
             buffer_seek(buf, buffer_seek_relative, -1);
             value = _buf_read_value(buf);
             if struct_exists(global.__players, _player_id) {
@@ -1218,7 +1269,7 @@ function _handle_packet(buf) {
             global.__callback_other_vari[index] = undefined;
             break;
         case 18: // Update game server version
-            global.__game_version = buffer_read(buf, buffer_f64);
+            global.__game_version = _buf_read(buf, buffer_f64);
             break;
         case 19: // Add administrator
 			if _buf_read_bool(buf) {
@@ -1246,7 +1297,7 @@ function _handle_packet(buf) {
             size = _buf_read_leb_u64(buf);
             repeat size {
                 name = _buf_read_string(buf);
-                remove_vari = buffer_read(buf, buffer_u8) == 0xff;
+                remove_vari = _buf_read(buf, buffer_u8) == 0xff;
                 buffer_seek(buf, buffer_seek_relative, -1);
                 var vari = _buf_read_value(buf);
                 if remove_vari
@@ -1254,6 +1305,55 @@ function _handle_packet(buf) {
                 else
                     global.__player_save[$ name] = vari;
             }
+            break;
+		case 22: // Request BDB
+			index = _buf_read_leb_u64(buf);
+			var data = undefined;
+			if _buf_read_bool(buf) {
+				data = _buf_read_bytes(buf);
+			}
+			break;
+		case 23: // Change Friend Status
+			var mode = _buf_read(buf, buffer_u8);
+			var pid = _buf_read_leb_u64(buf);
+			break;
+        case 24: // Handshake data
+            var write_key = _buf_read_i64(buf);
+            var write_salt = _buf_read_i64(buf);
+            var write_reseton = _buf_read(buf, buffer_u8);
+            var write_algorithm = _buf_read(buf, buffer_u8);
+            var read_key = _buf_read_i64(buf);
+            var read_salt = _buf_read_i64(buf);
+            var read_reseton = _buf_read(buf, buffer_u8);
+            var read_algorithm = _buf_read(buf, buffer_u8);
+            global.__encrypt[__ENCRYPT_WRITE].key = write_key;
+            global.__encrypt[__ENCRYPT_WRITE].salt = write_salt;
+            global.__encrypt[__ENCRYPT_WRITE].reset_on = write_reseton;
+            global.__encrypt[__ENCRYPT_WRITE].algorithm = write_algorithm;
+			
+            global.__encrypt[__ENCRYPT_READ].key = read_key;
+            global.__encrypt[__ENCRYPT_READ].salt = read_salt;
+            global.__encrypt[__ENCRYPT_WRITE].reset_on = read_reseton;
+            global.__encrypt[__ENCRYPT_READ].algorithm = read_algorithm;
+			
+			global.__recv_encrypt = true;
+			
+            show_debug_message(string(global.__encrypt));
+            _encrypt_start(__ENCRYPT_WRITE);
+            var b = buffer_create(0, buffer_grow, 1);
+            _buf_write(b, buffer_u8, 0);
+            _buf_write(b, buffer_u64, 0x3a0b1a04c51a2811);
+            _buf_write(b, buffer_u64, 0x97a18f1dc9ee891d);
+            _buf_write(b, buffer_u64, 0xfc7eb64f732a37fd);
+            _buf_write(b, buffer_u64, 0xbe65cbabde15c305);
+            _buf_write_leb_u64(b, 1);
+            var device_info = os_get_info();
+            _buf_write_string(b, is_undefined(device_info[? "udid"]) ? "" : device_info[? "udid"]);
+            ds_map_destroy(device_info);
+            _buf_write_string(b, global.__game_id);
+            _buf_write(b, buffer_f64, global.__version);
+            _buf_write_string(b, global.__session);
+            _buf_send(b);
             break;
     }
 }
@@ -1405,29 +1505,30 @@ function _check_players_queue(pid) {
 
 function crystal_connect() {
     if _crystal_verify_init() {
-        if global.__is_connected {
+        if global.__is_connected
             return;
-        }
         if global.__socket != undefined
             network_destroy(global.__socket);
-        if os_browser == browser_not_a_browser
-            global.__socket = network_create_socket(network_socket_tcp);
-        else
-            global.__socket = network_create_socket(network_socket_ws);
-        var port = 16562;
+        /*if os_browser == browser_not_a_browser
+                global.__socket = network_create_socket(network_socket_tcp);
+            else
+                global.__socket = network_create_socket(network_socket_ws);*/
+        global.__socket = network_create_socket(network_socket_ws);
+        /*var port = 16562;
         if os_browser == browser_not_a_browser {
             port = 16561;
-        }
-        for (var i = 0; i < array_length(global.__buffered_data); i++) {
+        }*/
+        for (var i = 0; i < array_length(global.__buffered_data); i++)
             buffer_delete(global.__buffered_data[i]);
-        }
         array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
         global.__call_disconnected = true;
         global.__is_connecting = true;
         global.__handshake_completed = false;
-        var __a = "server";
+        global.__recv_encrypt = false;
+        /*var __a = "server";
         var __b = ".";
-        global.__async_network_id = network_connect_raw_async(global.__socket, __a + __b + "crystal-server.co", port);
+        global.__async_network_id = network_connect_raw_async(global.__socket, __a + __b + "crystal-server.co", 16562);*/
+		global.__async_network_id = network_connect_raw_async(global.__socket, "127.0.0.1", 16562);
         if global.__async_network_id < 0 {
             global.__is_connected = false;
             global.__is_connecting = false;
@@ -1438,20 +1539,6 @@ function crystal_connect() {
             }
             _crystal_clear_disconnected();
         }
-        var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 0);
-        buffer_write(b, buffer_u64, 0xf2b9c7a65420e78);
-        buffer_write(b, buffer_u64, 0xb90a8cda60435ab);
-        buffer_write(b, buffer_u64, 0xa89c0a6b789adb0);
-        buffer_write(b, buffer_u64, 0x19840a684219abd);
-        buffer_write(b, buffer_u32, 0);
-        var device_info = os_get_info();
-        _buf_write_string(b, device_info[? "udid"]);
-        ds_map_destroy(device_info);
-        _buf_write_string(b, global.__game_id);
-        buffer_write(b, buffer_f64, global.__version);
-        _buf_write_string(b, global.__session);
-        _buf_send(b);
     }
 }
 
@@ -1499,8 +1586,9 @@ function crystal_script_set_login_token(script) {
 }
 
 function crystal_login(username, password) {
+	_encrypt_start(__ENCRYPT_WRITE);
     var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 1);
+    _buf_write(b, buffer_u8, 1);
     _buf_write_string(b, username);
     _buf_write_bool(b, false);
     _buf_write_string(b, password);
@@ -1514,8 +1602,9 @@ function crystal_login(username, password) {
 }
 
 function crystal_login_with_token(username, token) {
+	_encrypt_start(__ENCRYPT_WRITE);
     var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 1);
+    _buf_write(b, buffer_u8, 1);
     _buf_write_string(b, username);
     _buf_write_bool(b, true);
     _buf_write_string(b, token);
@@ -1533,8 +1622,9 @@ function crystal_set_game_token(token) {
 }
 
 function crystal_register(username, email, password, repeat_password) {
+	_encrypt_start(__ENCRYPT_WRITE);
     var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 2);
+    _buf_write(b, buffer_u8, 2);
     _buf_write_string(b, username);
     _buf_write_string(b, email);
     _buf_write_string(b, password);
@@ -1651,36 +1741,38 @@ function crystal_other_request(pid, name, callback = undefined) {
             array_push(global.__callback_other_vari, undefined);
         }
         global.__callback_other_vari[index] = [name, callback];
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 3);
+        _buf_write(b, buffer_u8, 3);
         _buf_write_bool(b, pid >= 0);
         if pid >= 0
             _buf_write_leb_u64(b, pid);
         _buf_write_string(b, name);
-        buffer_write(b, buffer_u16, index);
+        _buf_write(b, buffer_u16, index);
         _buf_send(b);
     }
 }
 
 function crystal_p2p(p2pcode_or_pid, message_id, data = []) {
+	_encrypt_start(__ENCRYPT_WRITE);
     var b = buffer_create(0, buffer_grow, 1);
-    buffer_write(b, buffer_u8, 4);
+    _buf_write(b, buffer_u8, 4);
     switch p2pcode_or_pid {
         case P2PCode.AllGame:
-            buffer_write(b, buffer_u8, 1);
+            _buf_write(b, buffer_u8, 1);
             break;
         case P2PCode.CurrentSession:
-            buffer_write(b, buffer_u8, 2);
+            _buf_write(b, buffer_u8, 2);
             break;
         case P2PCode.CurrentRoom:
-            buffer_write(b, buffer_u8, 3);
+            _buf_write(b, buffer_u8, 3);
             break;
         default:
-            buffer_write(b, buffer_u8, 0);
+            _buf_write(b, buffer_u8, 0);
             _buf_write_leb_u64(b, p2pcode_or_pid);
             break;
     }
-    buffer_write(b, buffer_s16, message_id);
+    _buf_write(b, buffer_s16, message_id);
     _buf_write_array(b, data);
     _buf_send(b);
 }
@@ -1688,9 +1780,10 @@ function crystal_p2p(p2pcode_or_pid, message_id, data = []) {
 function crystal_set_version(version) {
     global.__version = version;
     if global.__is_connected {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 5);
-        buffer_write(b, buffer_f64, version);
+        _buf_write(b, buffer_u8, 5);
+        _buf_write(b, buffer_f64, version);
         _buf_send(b);
     }
 }
@@ -1702,8 +1795,9 @@ function crystal_get_server_version() {
 function crystal_set_session(session) {
     global.__session = session;
     if global.__is_connected {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 6);
+        _buf_write(b, buffer_u8, 6);
         _buf_write_string(b, session);
         _buf_send(b);
     }
@@ -1827,8 +1921,9 @@ function crystal_achievement_is_reached(aid) {
 
 function crystal_achievement_reach(aid) {
     if crystal_achievement_exists(aid) && !crystal_achievement_is_reached(aid) {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 14);
+        _buf_write(b, buffer_u8, 14);
         _buf_write_leb_u64(b, aid);
         _buf_send(b);
         global.__game_achievements[$ aid].players[$ crystal_self_get_id()] = floor(_get_unix_time());
@@ -1868,10 +1963,11 @@ function crystal_highscore_set(hid, score) {
                 return;
         }
         highscore.scores[$ crystal_self_get_id()] = score;
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 15);
+        _buf_write(b, buffer_u8, 15);
         _buf_write_leb_u64(b, hid);
-        buffer_write(b, buffer_f64, score);
+        _buf_write(b, buffer_f64, score);
         _buf_send(b);
     }
 }
@@ -2006,12 +2102,13 @@ function crystal_sync_request(pid, slot, variable_name, callback = undefined) {
                 array_push(global.__callback_other_vari, undefined);
             }
             global.__callback_other_vari[index] = [variable_name, callback, slot];
+			_encrypt_start(__ENCRYPT_WRITE);
             var b = buffer_create(0, buffer_grow, 1);
-			buffer_write(b, buffer_u8, 17);
+			_buf_write(b, buffer_u8, 17);
             _buf_write_leb_u64(b, pid);
             _buf_write_string(b, variable_name);
-            buffer_write(b, buffer_u16, index);
-            buffer_write(b, buffer_u16, slot);
+            _buf_write(b, buffer_u16, index);
+            _buf_write(b, buffer_u16, slot);
             _buf_send(b);
         }
     }
@@ -2039,9 +2136,10 @@ function crystal_other_get_admin(pid) {
 
 function crystal_admin_kick(pid, reason = "") {
     if pid == crystal_self_get_id() || crystal_self_get_admin().can_kick {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 16);
-        buffer_write(b, buffer_u8, 2);
+        _buf_write(b, buffer_u8, 16);
+        _buf_write(b, buffer_u8, 2);
         _buf_write_leb_u64(b, pid);
         _buf_write_string(b, reason);
         _buf_send(b);
@@ -2052,9 +2150,10 @@ function crystal_admin_kick(pid, reason = "") {
 
 function crystal_admin_ban(pid, unix_unban_time, reason = "") {
     if pid == crystal_self_get_id() || crystal_self_get_admin().can_ban {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 16);
-        buffer_write(b, buffer_u8, 0);
+        _buf_write(b, buffer_u8, 16);
+        _buf_write(b, buffer_u8, 0);
         _buf_write_leb_u64(b, pid);
         _buf_write_string(b, reason);
         _buf_write_i64(b, unix_unban_time);
@@ -2066,9 +2165,10 @@ function crystal_admin_ban(pid, unix_unban_time, reason = "") {
 
 function crystal_admin_unban(pid) {
     if crystal_self_get_admin().can_unban {
+		_encrypt_start(__ENCRYPT_WRITE);
         var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 16);
-        buffer_write(b, buffer_u8, 1);
+        _buf_write(b, buffer_u8, 16);
+        _buf_write(b, buffer_u8, 1);
         _buf_write_leb_u64(b, pid);
         _buf_send(b);
         return true;
@@ -2076,14 +2176,15 @@ function crystal_admin_unban(pid) {
     return false;
 }
 
-function crystal_use_compression_zlib(use) {
+/*function crystal_use_compression_zlib(use) {
     global.__compression = use ? CompressionType.Zlib : CompressionType.None;
-}
+}*/
 
 function crystal_logout() {
 	if crystal_info_is_loggedin() {
+		_encrypt_start(__ENCRYPT_WRITE);
 		var b = buffer_create(0, buffer_grow, 1);
-        buffer_write(b, buffer_u8, 18);
+        _buf_write(b, buffer_u8, 18);
         _buf_send(b);
 		_crystal_partial_clear_disconnected();
 		return true;
