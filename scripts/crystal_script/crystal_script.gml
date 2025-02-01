@@ -684,7 +684,7 @@ function __decode_player(s) {
 }
 
 function __decode_sync(s) {
-    var s = string_split(s, ":");
+    s = string_split(s, ":");
     if s[0] == "!"
         return undefined;
     var sy = new Sync();
