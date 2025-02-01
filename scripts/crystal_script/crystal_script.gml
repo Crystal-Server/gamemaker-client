@@ -47,9 +47,10 @@ enum CreateSync {
 }
 
 enum P2PCode {
-    AllGame = -5,
-    CurrentSession = -6,
-    CurrentRoom = -7,
+    AllGame = -1,
+    CurrentSession = -2,
+    CurrentRoom = -3,
+    Server = -4,
 }
 
 function Player() constructor {
@@ -76,6 +77,8 @@ function Administrator() constructor {
 }
 
 global.__crystal_dll = {
+    "_set_room": external_define("crystal_dll.dll", "_set_room", dll_cdecl, ty_real, 1, ty_string),
+
     "init": external_define("crystal_dll.dll", "init", dll_cdecl, ty_real, 1, ty_string),
     "connect": external_define("crystal_dll.dll", "connect", dll_cdecl, ty_real, 0),
     "update": external_define("crystal_dll.dll", "update", dll_cdecl, ty_real, 1, ty_string),
@@ -152,6 +155,67 @@ global.__crystal_dll = {
     //"": external_define("crystal_dll.dll", "", dll_cdecl, ty_real, 0),
 };
 
+global.__crystal_callback_room = undefined;
+global.__crystal_callback_p2p = undefined;
+global.__crystal_callback_register = undefined;
+global.__crystal_callback_login = undefined;
+global.__crystal_callback_banned = undefined;
+global.__crystal_callback_kicked = undefined;
+global.__crystal_callback_disconnected = undefined;
+global.__crystal_callback_login_token = undefined;
+//global.__crystal_callback_data_update = undefined;
+global.__crystal_callback_bdb = undefined;
+global.__crystal_callback_update_variable = undefined;
+global.__crystal_callback_update_sync_variable = undefined;
+
+function crystal_set_callback_room(callback) {
+    global.__crystal_callback_room = callback;
+}
+
+function crystal_set_callback_p2p(callback) {
+    global.__crystal_callback_p2p = callback;
+}
+
+function crystal_set_callback_register(callback) {
+    global.__crystal_callback_register = callback;
+}
+
+function crystal_set_callback_login(callback) {
+    global.__crystal_callback_login = callback;
+}
+
+function crystal_set_callback_banned(callback) {
+    global.__crystal_callback_banned = callback;
+}
+
+function crystal_set_callback_kicked(callback) {
+    global.__crystal_callback_kicked = callback;
+}
+
+function crystal_set_callback_disconnected(callback) {
+    global.__crystal_callback_disconnected = callback;
+}
+
+function crystal_set_callback_login_token(callback) {
+    global.__crystal_callback_login_token = callback;
+}
+
+/*function crystal_set_callback_data_update(callback) {
+    global.__crystal_callback_data_update = callback;
+}*/
+
+function crystal_set_callback_bdb(callback) {
+    global.__crystal_callback_bdb = callback;
+}
+
+function crystal_set_callback_update_variable(callback) {
+    global.__crystal_callback_update_variable = callback;
+}
+
+function crystal_set_callback_update_variable_sync(callback) {
+    global.__crystal_callback_update_variable_sync = callback;
+}
+
 function crystal_init(game_id) {
     return external_call(global.__crystal_dll[$ "init"], game_id);
 }
@@ -161,9 +225,106 @@ function crystal_connect() {
 }
 
 function crystal_update() {
+    var rm = string(room);
+    if global.__crystal_callback_room != undefined
+        rm = string(global.__crystal_callback_room());
+    external_call(global.__crystal_dll[$ "_set_room"], rm);
     var notf = external_call(global.__crystal_dll[$ "get_notification"]);
     while string_length(notf) > 0 {
-        // TODO: Handle notifications
+        var s = string_split(notf, ";");
+        switch s[0] {
+            case "admin_action":
+                switch s[1] {
+                    case "1":
+                        if global.__crystal_callback_banned != undefined
+                            global.__crystal_callback_banned(base64_decode(s[2]), int64(s[3]));
+                        break;
+                    case "2":
+                        if global.__crystal_callback_kicked != undefined
+                            global.__crystal_callback_kicked(base64_decode(s[2]));
+                        break;
+                }
+                break;
+            case "banned":
+                if global.__crystal_callback_banned != undefined
+                    global.__crystal_callback_banned(base64_decode(s[1]), int64(s[2]));
+                break;
+            case "kicked":
+                if global.__crystal_callback_kicked != undefined
+                    global.__crystal_callback_kicked(base64_decode(s[1]));
+                break;
+            case "friend_status": // status->u64
+                break;
+            case "disconnected":
+                if global.__crystal_callback_disconnected != undefined
+                    global.__crystal_callback_disconnected();
+                break;
+            case "fetch_bdb":
+                switch s[1] {
+                    case "0":
+                        if global.__crystal_callback_bdb != undefined
+                            global.__crystal_callback_bdb(base64_decode(s[2]));
+                        break;
+                    case "1":
+                        if global.__crystal_callback_bdb != undefined
+                            global.__crystal_callback_bdb(base64_decode(s[2]), base64_decode(s[3]));
+                        break;
+                }
+                break;
+            case "login":
+                if global.__crystal_callback_login != undefined
+                    global.__crystal_callback_login(real(s[1]));
+                break;
+            case "login_ok":
+                if global.__crystal_callback_login != undefined
+                    global.__crystal_callback_login(LoginResult.OK);
+            case "login_ban":
+                if global.__crystal_callback_login != undefined
+                    global.__crystal_callback_login(real(s[1]), base64_decode(s[2]), real(s[3]));
+                break;
+            case "p2p":
+                if global.__crystal_callback_p2p != undefined {
+                    var _pid = -1;
+                    if s[1] != "!"
+                        _pid = real(s[1]);
+                    global.__crystal_callback_p2p(_pid, real(s[2]), __decode_variable(s[3]));
+                }
+                break;
+            case "register":
+                if global.__crystal_callback_register != undefined
+                    global.__crystal_callback_register(real(s[1]));
+                break;
+            case "player_logged_in": // pid->u64,name->string_base64,room->string_base64
+                break;
+            case "player_logged_out": // pid->u64
+                break;
+            case "reconnecting":    
+                break;
+            case "server_message": // server_message->string_base64
+                break;
+            case "update_variable":
+                if global.__crystal_callback_update_variable != undefined {
+                    global.__crystal_callback_update_variable(real(s[1]), base64_decode(s[2]), __decode_variable(s[3]), s[3] == "!!");
+                }
+                break;
+            case "update_sync_variable":
+                if global.__crystal_callback_update_sync_variable != undefined {
+                    global.__crystal_callback_update_sync_variable(real(s[1]), real(s[2]), base64_decode(s[3]), __decode_variable(s[4]), s[4] == "!!");
+                }
+                break;
+            case "update_sync_removal": // pid->u64,slot->u64
+                break;
+            case "update_gameini": // file->string_base64,section->string_base64,key->string_base64,value->vari
+                break;
+            case "update_playerini": // file->string_base64,section->string_base64,key->string_base64,value->vari
+                break;
+            case "update_gameversion": // version->f64
+                break;
+            case "update_administrator": // pid->u64,admin->admin
+                break;
+            case "server_notification": // notif->string_base64
+                break;
+        }
         notf = external_call(global.__crystal_dll[$ "get_notification"]);
     }
     return external_call(global.__crystal_dll[$ "update"]);
@@ -578,6 +739,7 @@ function __decode_variable(s) {
     s = string_split(s, ":");
     switch s[0] {
         case "!":
+        case "!!":
             return undefined;
         case "0":
             return int64(s[1]);

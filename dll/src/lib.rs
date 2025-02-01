@@ -23,6 +23,13 @@ static mut RUNTIME: LazyCell<Runtime> = LazyCell::new(|| Runtime::new().unwrap()
 static mut NOTIFICATIONS: LazyCell<Mutex<VecDeque<String>>> =
     LazyCell::new(|| Mutex::new(VecDeque::default()));
 static mut HAS_INIT: LazyCell<Mutex<bool>> = LazyCell::new(|| Mutex::new(false));
+static mut ROOM: LazyCell<Mutex<String>> = LazyCell::new(|| Mutex::new(String::new()));
+
+#[no_mangle]
+#[allow(clippy::missing_safety_doc, static_mut_refs)]
+pub unsafe extern "cdecl" fn _set_room(room: *mut i8) {
+    *ROOM.lock() = CString::from_raw(room).to_string_lossy().to_string();
+}
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
@@ -33,6 +40,8 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
         let mut lock = CRYSTAL.lock();
         *lock = CrystalServer::init(CString::from_raw(game_id).to_str().unwrap());
         RUNTIME.block_on(async {
+            lock.callback_set_room(Box::new(|| ROOM.lock().clone()))
+                .await;
             lock.callback_set_data_update(Box::new(|input| {
                 NOTIFICATIONS.lock().push_back(match input {
                     DataUpdate::AdminAction(aa) => match aa {
@@ -97,7 +106,7 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
                         )
                     }
                     DataUpdate::Registration(code) => {
-                        format!("reg;{}", code as u64)
+                        format!("register;{}", code as u64)
                     }
                     DataUpdate::PlayerLoggedIn(pid, name, room) => {
                         format!(
@@ -120,7 +129,7 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
                             if let OptionalVariable::Some(value) = value {
                                 encode_vari(&value)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             }
                         )
                     }
@@ -131,7 +140,7 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
                             if let OptionalVariable::Some(value) = value {
                                 encode_vari(&value)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             }
                         )
                     }
@@ -144,14 +153,14 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
                             if let Some(file) = file {
                                 BASE64_STANDARD.encode(file)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             },
                             BASE64_STANDARD.encode(section),
                             BASE64_STANDARD.encode(key),
                             if let OptionalVariable::Some(value) = value {
                                 encode_vari(&value)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             }
                         )
                     }
@@ -161,14 +170,14 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
                             if let Some(file) = file {
                                 BASE64_STANDARD.encode(file)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             },
                             BASE64_STANDARD.encode(section),
                             BASE64_STANDARD.encode(key),
                             if let OptionalVariable::Some(value) = value {
                                 encode_vari(&value)
                             } else {
-                                String::from("!")
+                                String::from("!!")
                             }
                         )
                     }
