@@ -315,7 +315,7 @@ dependencies = [
 [[package]]
 name = "crystal-server"
 version = "1.0.0"
-source = "git+https://github.com/Crystal-Server/rust-client.git?rev=5af47881e7220863cd12e241b1f9dc41b9618836#5af47881e7220863cd12e241b1f9dc41b9618836"
+source = "git+https://github.com/Crystal-Server/rust-client.git?rev=9fd4447e1015c40b30ba18f8dd5cb0da1877f793#9fd4447e1015c40b30ba18f8dd5cb0da1877f793"
 dependencies = [
  "age",
  "async-stream",
@@ -337,6 +337,7 @@ name = "crystal_dll"
 version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "crystal-server",
  "futures-util",
  "parking_lot",
