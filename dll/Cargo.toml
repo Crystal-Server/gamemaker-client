@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 base64 = "0.22.1"
 chrono = "0.4.39"
-crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "9fd4447e1015c40b30ba18f8dd5cb0da1877f793" }
+crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "624a6d3248ba4902046c3a54d20a25e227fe3b10" }
 futures-util = "0.3.31"
 parking_lot = "0.12.3"
 tokio = { features = ["full"], version = "1.43.0" }
