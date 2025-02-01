@@ -664,10 +664,10 @@ function __decode_player(s) {
         sy.sync_type = real(ss[2]);
         sy.event = real(ss[3]);
         sy.is_ending = bool(real(ss[4]));
-        var id = real(ss[0]);
-        while array_length(p.syncs) <= id
+        var __id = real(ss[0]);
+        while array_length(p.syncs) <= __id
             array_push(p.syncs, undefined);
-        p.syncs[id] = sy;
+        p.syncs[__id] = sy;
         o++;
     }
     for (var i = 0; i < ssize; i++) {
