@@ -758,7 +758,7 @@ function __decode_variable(s) {
                 array_push(r, __decode_variable(base64_decode(s[i + 2])));
             return r;
         case "6":
-            var r = [];
+            var r = {};
             var sz = real(s[1]);
             for (var i = 0; i < sz; i += 2)
                 struct_set(r, base64_decode(s[i + 2]), __decode_variable(base64_decode(s[i + 3])));
