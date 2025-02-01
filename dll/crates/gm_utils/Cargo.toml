@@ -1,0 +1,20 @@
+[package]
+name = "gm_utils"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gm_utils_macro = { path = "../gm_utils_macro", version = "0.1.0" }
+nom = { version = "7.1.3", optional = true }
+half = { version = "2.4.1", optional = true }
+bstr = { version = "1.11.3", optional = true }
+serde = { version = "1.0.217", optional = true }
+libc = "0.2.169"
+
+[features]
+default = ["extra"]
+nom = ["dep:nom", "dep:half"]
+extra = ["nom", "dep:bstr"]
+serde = ["dep:serde"]

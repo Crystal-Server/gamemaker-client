@@ -14,6 +14,7 @@ use crystal_server::core::{
     },
 };
 use futures_util::{pin_mut, StreamExt};
+use gm_utils::gm_func;
 use parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
@@ -25,20 +26,22 @@ static mut NOTIFICATIONS: LazyCell<Mutex<VecDeque<String>>> =
 static mut HAS_INIT: LazyCell<Mutex<bool>> = LazyCell::new(|| Mutex::new(false));
 static mut ROOM: LazyCell<Mutex<String>> = LazyCell::new(|| Mutex::new(String::new()));
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn _set_room(room: *mut i8) {
+pub unsafe fn _set_room(room: *mut i8) {
     *ROOM.lock() = CString::from_raw(room).to_string_lossy().to_string();
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
+pub unsafe fn init(game_id: *mut i8) {
     let mut hinit = HAS_INIT.lock();
     if !*hinit {
         *hinit = true;
         let mut lock = CRYSTAL.lock();
+        println!("1");
         *lock = CrystalServer::init(CString::from_raw(game_id).to_str().unwrap());
+        println!("2");
         RUNTIME.block_on(async {
             lock.callback_set_room(Box::new(|| ROOM.lock().clone()))
                 .await;
@@ -204,61 +207,57 @@ pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
     }
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn connect() {
+pub unsafe fn connect() {
     let mut lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.connect().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn update() -> bool {
+pub unsafe fn update() -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.update().await.is_ok() })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_notification() -> *const i8 {
-    let mut ret = CString::default();
-    if let Some(notif) = NOTIFICATIONS.lock().pop_front() {
-        ret = CString::new(notif).unwrap();
-    }
-    ret.as_ptr()
+pub unsafe fn get_notification() -> String {
+    NOTIFICATIONS.lock().pop_front().unwrap_or_default()
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn is_connected() -> bool {
+pub unsafe fn is_connected() -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_connected().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn is_connecting() -> bool {
+pub unsafe fn is_connecting() -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_connecting().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn is_loggedin() -> bool {
+pub unsafe fn is_loggedin() -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_loggedin().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_ping() -> f64 {
+pub unsafe fn get_ping() -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_ping().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_game_token(token: *mut i8) {
+pub unsafe fn set_game_token(token: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.set_game_token(CString::from_raw(token).to_str().unwrap())
@@ -266,18 +265,18 @@ pub unsafe extern "cdecl" fn set_game_token(token: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn disconnect() {
+pub unsafe fn disconnect() {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.disconnect().await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn login(name: *mut i8, passw: *mut i8) {
+pub unsafe fn login(name: *mut i8, passw: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -289,9 +288,9 @@ pub unsafe extern "cdecl" fn login(name: *mut i8, passw: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn login_with_token(name: *mut i8, token: *mut i8) {
+pub unsafe fn login_with_token(name: *mut i8, token: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -303,14 +302,9 @@ pub unsafe extern "cdecl" fn login_with_token(name: *mut i8, token: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn register(
-    name: *mut i8,
-    email: *mut i8,
-    passw: *mut i8,
-    repeat_passw: *mut i8,
-) {
+pub unsafe fn register(name: *mut i8, email: *mut i8, passw: *mut i8, repeat_passw: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -324,9 +318,9 @@ pub unsafe extern "cdecl" fn register(
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_player_id() -> f64 {
+pub unsafe fn get_player_id() -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_player_id()
@@ -336,19 +330,16 @@ pub unsafe extern "cdecl" fn get_player_id() -> f64 {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_player_name() -> *const i8 {
+pub unsafe fn get_player_name() -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let name = CString::new(lock.get_player_name().await.unwrap_or(String::new())).unwrap();
-        name.as_ptr()
-    })
+    RUNTIME.block_on(async { lock.get_player_name().await.unwrap_or(String::new()) })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_variable(name: *mut i8, variable: *mut i8) {
+pub unsafe fn set_variable(name: *mut i8, variable: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.set_variable(
@@ -359,9 +350,9 @@ pub unsafe extern "cdecl" fn set_variable(name: *mut i8, variable: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_variable(name: *mut i8) {
+pub unsafe fn remove_variable(name: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.remove_variable(CString::from_raw(name).to_str().unwrap())
@@ -369,9 +360,9 @@ pub unsafe extern "cdecl" fn remove_variable(name: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn iter_other_players() -> *const i8 {
+pub unsafe fn iter_other_players() -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let iter = lock.iter_other_players().await;
@@ -380,58 +371,49 @@ pub unsafe extern "cdecl" fn iter_other_players() -> *const i8 {
         while let Some((pid, player)) = iter.next().await {
             res.push_str(&format!("{};", encode_player(pid, &player)));
         }
-        let res = CString::new(res).unwrap();
-        res.as_ptr()
+        res
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn other_players_count() -> f64 {
+pub unsafe fn other_players_count() -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.other_players_count().await as f64 })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_other_player(pid: f64) -> *const i8 {
+pub unsafe fn get_other_player(pid: f64) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some(player) = lock.get_other_player(pid as u64).await {
-                encode_player(pid as u64, &player)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some(player) = lock.get_other_player(pid as u64).await {
+            encode_player(pid as u64, &player)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_other_player_name(name: *mut i8) -> *const i8 {
+pub unsafe fn get_other_player_name(name: *mut i8) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some((pid, player)) = lock
-                .get_other_player_name(CString::from_raw(name).to_str().unwrap())
-                .await
-            {
-                encode_player(pid, &player)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some((pid, player)) = lock
+            .get_other_player_name(CString::from_raw(name).to_str().unwrap())
+            .await
+        {
+            encode_player(pid, &player)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn request_other_player_variable(pid: f64, name: *mut i8, request: f64) {
+pub unsafe fn request_other_player_variable(pid: f64, name: *mut i8, request: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -453,9 +435,9 @@ pub unsafe extern "cdecl" fn request_other_player_variable(pid: f64, name: *mut 
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn p2p(target: f64, mid: f64, payload: *mut i8) {
+pub unsafe fn p2p(target: f64, mid: f64, payload: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -483,52 +465,46 @@ pub unsafe extern "cdecl" fn p2p(target: f64, mid: f64, payload: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_version(version: f64) {
+pub unsafe fn set_version(version: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.set_version(version).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_version() -> f64 {
+pub unsafe fn get_version() -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_version().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_server_version() -> f64 {
+pub unsafe fn get_server_version() -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_server_version().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_session() -> *const i8 {
+pub unsafe fn get_session() -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let s = CString::new(lock.get_session().await).unwrap();
-        s.as_ptr()
-    })
+    RUNTIME.block_on(async { lock.get_session().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_open_playerini() -> *const i8 {
+pub unsafe fn get_open_playerini() -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let s = CString::new(lock.get_open_playerini().await).unwrap();
-        s.as_ptr()
-    })
+    RUNTIME.block_on(async { lock.get_open_playerini().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn open_playerini(file: *mut i8) {
+pub unsafe fn open_playerini(file: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.open_playerini(CString::from_raw(file).to_str().unwrap())
@@ -536,18 +512,18 @@ pub unsafe extern "cdecl" fn open_playerini(file: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn close_playerini() {
+pub unsafe fn close_playerini() {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.close_playerini().await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_playerini(section: *mut i8, key: *mut i8) -> bool {
+pub unsafe fn has_playerini(section: *mut i8, key: *mut i8) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.has_playerini(
@@ -558,32 +534,28 @@ pub unsafe extern "cdecl" fn has_playerini(section: *mut i8, key: *mut i8) -> bo
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_playerini(section: *mut i8, key: *mut i8) -> *const i8 {
+pub unsafe fn get_playerini(section: *mut i8, key: *mut i8) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some(vari) = lock
-                .get_playerini(
-                    CString::from_raw(section).to_str().unwrap(),
-                    CString::from_raw(key).to_str().unwrap(),
-                )
-                .await
-            {
-                encode_vari(&vari)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some(vari) = lock
+            .get_playerini(
+                CString::from_raw(section).to_str().unwrap(),
+                CString::from_raw(key).to_str().unwrap(),
+            )
+            .await
+        {
+            encode_vari(&vari)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_playerini(section: *mut i8, key: *mut i8, vari: *mut i8) {
+pub unsafe fn set_playerini(section: *mut i8, key: *mut i8, vari: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.set_playerini(
@@ -595,9 +567,9 @@ pub unsafe extern "cdecl" fn set_playerini(section: *mut i8, key: *mut i8, vari:
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_playerini(section: *mut i8, key: *mut i8) {
+pub unsafe fn remove_playerini(section: *mut i8, key: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.remove_playerini(
@@ -608,19 +580,16 @@ pub unsafe extern "cdecl" fn remove_playerini(section: *mut i8, key: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_open_gameini() -> *const i8 {
+pub unsafe fn get_open_gameini() -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let s = CString::new(lock.get_open_gameini().await).unwrap();
-        s.as_ptr()
-    })
+    RUNTIME.block_on(async { lock.get_open_gameini().await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn open_gameini(file: *mut i8) {
+pub unsafe fn open_gameini(file: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.open_gameini(CString::from_raw(file).to_str().unwrap())
@@ -628,18 +597,18 @@ pub unsafe extern "cdecl" fn open_gameini(file: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn close_gameini() {
+pub unsafe fn close_gameini() {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.close_gameini().await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_gameini(section: *mut i8, key: *mut i8) -> bool {
+pub unsafe fn has_gameini(section: *mut i8, key: *mut i8) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.has_gameini(
@@ -650,32 +619,28 @@ pub unsafe extern "cdecl" fn has_gameini(section: *mut i8, key: *mut i8) -> bool
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_gameini(section: *mut i8, key: *mut i8) -> *const i8 {
+pub unsafe fn get_gameini(section: *mut i8, key: *mut i8) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some(vari) = lock
-                .get_gameini(
-                    CString::from_raw(section).to_str().unwrap(),
-                    CString::from_raw(key).to_str().unwrap(),
-                )
-                .await
-            {
-                encode_vari(&vari)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some(vari) = lock
+            .get_gameini(
+                CString::from_raw(section).to_str().unwrap(),
+                CString::from_raw(key).to_str().unwrap(),
+            )
+            .await
+        {
+            encode_vari(&vari)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_gameini(section: *mut i8, key: *mut i8, vari: *mut i8) {
+pub unsafe fn set_gameini(section: *mut i8, key: *mut i8, vari: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.set_gameini(
@@ -687,9 +652,9 @@ pub unsafe extern "cdecl" fn set_gameini(section: *mut i8, key: *mut i8, vari: *
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_gameini(section: *mut i8, key: *mut i8) {
+pub unsafe fn remove_gameini(section: *mut i8, key: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.remove_gameini(
@@ -700,33 +665,30 @@ pub unsafe extern "cdecl" fn remove_gameini(section: *mut i8, key: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_achievement(aid: f64) -> bool {
+pub unsafe fn has_achievement(aid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_achievement(aid as u64).await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_achievement(aid: f64) -> *const i8 {
+pub unsafe fn get_achievement(aid: f64) -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let s = CString::new(encode_achievement(&lock.get_achievement(aid as u64).await)).unwrap();
-        s.as_ptr()
-    })
+    RUNTIME.block_on(async { encode_achievement(&lock.get_achievement(aid as u64).await) })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_reached_achievement(aid: f64) -> bool {
+pub unsafe fn has_reached_achievement(aid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_reached_achievement(aid as u64).await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_reached_achievement(aid: f64) -> f64 {
+pub unsafe fn get_reached_achievement(aid: f64) -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_reached_achievement(aid as u64)
@@ -736,42 +698,39 @@ pub unsafe extern "cdecl" fn get_reached_achievement(aid: f64) -> f64 {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn reach_achievement(aid: f64) {
+pub unsafe fn reach_achievement(aid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.reach_achievement(aid as u64).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_highscore(aid: f64) -> bool {
+pub unsafe fn has_highscore(aid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_highscore(aid as u64).await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_highscore(hid: f64) -> *const i8 {
+pub unsafe fn get_highscore(hid: f64) -> String {
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        let s = CString::new(encode_highscore(&lock.get_highscore(hid as u64).await)).unwrap();
-        s.as_ptr()
-    })
+    RUNTIME.block_on(async { encode_highscore(&lock.get_highscore(hid as u64).await) })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn has_score_highscore(hid: f64) -> bool {
+pub unsafe fn has_score_highscore(hid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_score_highscore(hid as u64).await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_score_highscore(hid: f64) -> f64 {
+pub unsafe fn get_score_highscore(hid: f64) -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_score_highscore(hid as u64)
@@ -780,18 +739,18 @@ pub unsafe extern "cdecl" fn get_score_highscore(hid: f64) -> f64 {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_score_highscore(hid: f64, score: f64) {
+pub unsafe fn set_score_highscore(hid: f64, score: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.set_score_highscore(hid as u64, score).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn create_sync(sync_type: f64, kind: f64) -> f64 {
+pub unsafe fn create_sync(sync_type: f64, kind: f64) -> f64 {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.create_sync(SyncType::try_from(sync_type as u8).unwrap(), kind as i16)
@@ -799,18 +758,18 @@ pub unsafe extern "cdecl" fn create_sync(sync_type: f64, kind: f64) -> f64 {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn destroy_sync(sync: f64) {
+pub unsafe fn destroy_sync(sync: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.destroy_sync(sync as usize).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_variable_sync(sync: f64, name: *mut i8, value: *mut i8) {
+pub unsafe fn set_variable_sync(sync: f64, name: *mut i8, value: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -823,9 +782,9 @@ pub unsafe extern "cdecl" fn set_variable_sync(sync: f64, name: *mut i8, value: 
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_variable_sync(sync: f64, name: *mut i8) {
+pub unsafe fn remove_variable_sync(sync: f64, name: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -834,37 +793,29 @@ pub unsafe extern "cdecl" fn remove_variable_sync(sync: f64, name: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_variable_other_sync(
-    pid: f64,
-    sync: f64,
-    name: *mut i8,
-) -> *const i8 {
+pub unsafe fn get_variable_other_sync(pid: f64, sync: f64, name: *mut i8) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some(vari) = lock
-                .get_variable_other_sync(
-                    pid as u64,
-                    sync as usize,
-                    CString::from_raw(name).to_str().unwrap(),
-                )
-                .await
-            {
-                encode_vari(&vari)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some(vari) = lock
+            .get_variable_other_sync(
+                pid as u64,
+                sync as usize,
+                CString::from_raw(name).to_str().unwrap(),
+            )
+            .await
+        {
+            encode_vari(&vari)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn iter_other_syncs() -> *const i8 {
+pub unsafe fn iter_other_syncs() -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let iter = lock.iter_other_syncs().await;
@@ -874,38 +825,33 @@ pub unsafe extern "cdecl" fn iter_other_syncs() -> *const i8 {
             res.push_str(&format!("1:{};", encode_synciter(&sync)));
         }
         res.push('0');
-        let res = CString::new(res).unwrap();
-        res.as_ptr()
+        res
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn is_player_admin(pid: f64) -> bool {
+pub unsafe fn is_player_admin(pid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_player_admin(pid as u64).await })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_player_admin(pid: f64) -> *const i8 {
+pub unsafe fn get_player_admin(pid: f64) -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new(
-            if let Some(admin) = lock.get_player_admin(pid as u64).await {
-                encode_administrator(&admin)
-            } else {
-                String::from("!")
-            },
-        )
-        .unwrap();
-        s.as_ptr()
+        if let Some(admin) = lock.get_player_admin(pid as u64).await {
+            encode_administrator(&admin)
+        } else {
+            String::from("!")
+        }
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn player_kick(pid: f64, reason: *mut i8) -> bool {
+pub unsafe fn player_kick(pid: f64, reason: *mut i8) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.player_kick(pid as u64, CString::from_raw(reason).to_str().unwrap())
@@ -914,9 +860,9 @@ pub unsafe extern "cdecl" fn player_kick(pid: f64, reason: *mut i8) -> bool {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn player_ban(pid: f64, reason: *mut i8, unban_time: f64) -> bool {
+pub unsafe fn player_ban(pid: f64, reason: *mut i8, unban_time: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.player_ban(
@@ -929,28 +875,23 @@ pub unsafe extern "cdecl" fn player_ban(pid: f64, reason: *mut i8, unban_time: f
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn player_unban(pid: f64) -> bool {
+pub unsafe fn player_unban(pid: f64) -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.player_unban(pid as u64).await.unwrap() })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn logout() -> bool {
+pub unsafe fn logout() -> bool {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.logout().await.unwrap() })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn request_other_sync_variable(
-    pid: f64,
-    slot: f64,
-    name: *mut i8,
-    request: f64,
-) {
+pub unsafe fn request_other_sync_variable(pid: f64, slot: f64, name: *mut i8, request: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -973,9 +914,9 @@ pub unsafe extern "cdecl" fn request_other_sync_variable(
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn fetch_bdb(name: *mut i8, request: f64) {
+pub unsafe fn fetch_bdb(name: *mut i8, request: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -996,9 +937,9 @@ pub unsafe extern "cdecl" fn fetch_bdb(name: *mut i8, request: f64) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn set_bdb(name: *mut i8, data: *mut i8) {
+pub unsafe fn set_bdb(name: *mut i8, data: *mut i8) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -1012,99 +953,87 @@ pub unsafe extern "cdecl" fn set_bdb(name: *mut i8, data: *mut i8) {
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_incoming_friends() -> *const i8 {
+pub unsafe fn get_incoming_friends() -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new({
-            let fr = lock.get_incoming_friends().await;
-            let mut s = format!("{}", fr.len());
-            for pid in fr {
-                s.push_str(&format!(":{pid}"));
-            }
-            s
-        })
-        .unwrap();
-        s.as_ptr()
+        let fr = lock.get_incoming_friends().await;
+        let mut s = format!("{}", fr.len());
+        for pid in fr {
+            s.push_str(&format!(":{pid}"));
+        }
+        s
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_outgoing_friends() -> *const i8 {
+pub unsafe fn get_outgoing_friends() -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new({
-            let fr = lock.get_outgoing_friends().await;
-            let mut s = format!("{}", fr.len());
-            for pid in fr {
-                s.push_str(&format!(":{pid}"));
-            }
-            s
-        })
-        .unwrap();
-        s.as_ptr()
+        let fr = lock.get_outgoing_friends().await;
+        let mut s = format!("{}", fr.len());
+        for pid in fr {
+            s.push_str(&format!(":{pid}"));
+        }
+        s
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn get_friends() -> *const i8 {
+pub unsafe fn get_friends() -> String {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let s = CString::new({
-            let fr = lock.get_friends().await;
-            let mut s = format!("{}", fr.len());
-            for pid in fr {
-                s.push_str(&format!(":{pid}"));
-            }
-            s
-        })
-        .unwrap();
-        s.as_ptr()
+        let fr = lock.get_friends().await;
+        let mut s = format!("{}", fr.len());
+        for pid in fr {
+            s.push_str(&format!(":{pid}"));
+        }
+        s
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn send_outgoing_friend(pid: f64) {
+pub unsafe fn send_outgoing_friend(pid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.send_outgoing_friend(pid as u64).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_outgoing_friend(pid: f64) {
+pub unsafe fn remove_outgoing_friend(pid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.remove_outgoing_friend(pid as u64).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn deny_incoming_friend(pid: f64) {
+pub unsafe fn deny_incoming_friend(pid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.deny_incoming_friend(pid as u64).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn accept_incoming_friend(pid: f64) {
+pub unsafe fn accept_incoming_friend(pid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.accept_incoming_friend(pid as u64).await;
     })
 }
 
-#[no_mangle]
+#[gm_func]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn remove_friend(pid: f64) {
+pub unsafe fn remove_friend(pid: f64) {
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.remove_friend(pid as u64).await;

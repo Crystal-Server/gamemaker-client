@@ -7,6 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+gm_utils = { path = "./crates/gm_utils" }
 base64 = "0.22.1"
 chrono = "0.4.39"
 crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "d68ecdda03c49b538b9749b8e1565cc0fb9ad09f" }
