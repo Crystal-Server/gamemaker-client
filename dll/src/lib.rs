@@ -18,175 +18,181 @@ use parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
 static mut CRYSTAL: LazyCell<Mutex<CrystalServer>> =
-    LazyCell::new(|| Mutex::new(CrystalServer::init("GAME ID"))); // This must be set at compile-time to correctly connect.
+    LazyCell::new(|| Mutex::new(CrystalServer::init("")));
 static mut RUNTIME: LazyCell<Runtime> = LazyCell::new(|| Runtime::new().unwrap());
 static mut NOTIFICATIONS: LazyCell<Mutex<VecDeque<String>>> =
     LazyCell::new(|| Mutex::new(VecDeque::default()));
+static mut HAS_INIT: LazyCell<Mutex<bool>> = LazyCell::new(|| Mutex::new(false));
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe extern "cdecl" fn init() {
-    let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        lock.callback_set_data_update(Box::new(|input| {
-            NOTIFICATIONS.lock().push_back(match input {
-                DataUpdate::AdminAction(aa) => match aa {
-                    AdminAction::Unban => String::from("admin_action;0"),
-                    AdminAction::Ban(reason, unban_time) => {
+pub unsafe extern "cdecl" fn init(game_id: *mut i8) {
+    let mut hinit = HAS_INIT.lock();
+    if !*hinit {
+        *hinit = true;
+        let mut lock = CRYSTAL.lock();
+        *lock = CrystalServer::init(CString::from_raw(game_id).to_str().unwrap());
+        RUNTIME.block_on(async {
+            lock.callback_set_data_update(Box::new(|input| {
+                NOTIFICATIONS.lock().push_back(match input {
+                    DataUpdate::AdminAction(aa) => match aa {
+                        AdminAction::Unban => String::from("admin_action;0"),
+                        AdminAction::Ban(reason, unban_time) => {
+                            format!(
+                                "admin_action;1;{};{unban_time}",
+                                BASE64_STANDARD.encode(reason)
+                            )
+                        }
+                        AdminAction::Kick(reason) => {
+                            format!("admin_action;2;{}", BASE64_STANDARD.encode(reason))
+                        }
+                    },
+                    DataUpdate::Banned(reason, unban_time) => {
                         format!(
-                            "admin_action;1;{};{unban_time}",
+                            "banned;{};{}",
+                            BASE64_STANDARD.encode(reason),
+                            unban_time.timestamp()
+                        )
+                    }
+                    DataUpdate::ChangeFriendStatus(status) => {
+                        format!("friend_status;{status}")
+                    }
+                    DataUpdate::Disconnected() => String::from("disconnected"),
+                    DataUpdate::FetchBdb(name, value) => {
+                        if let Some(value) = value {
+                            format!(
+                                "fetch_bdb;1;{};{}",
+                                BASE64_STANDARD.encode(name),
+                                BASE64_STANDARD.encode(value)
+                            )
+                        } else {
+                            format!("fetch_bdb;0;{}", BASE64_STANDARD.encode(name))
+                        }
+                    }
+                    DataUpdate::Kicked(reason) => {
+                        format!("kicked;{}", BASE64_STANDARD.encode(reason))
+                    }
+                    DataUpdate::Login(code) => {
+                        format!("login;{}", code as u64)
+                    }
+                    DataUpdate::LoginOk(pid, name) => {
+                        format!("login_ok;{pid};{}", BASE64_STANDARD.encode(name))
+                    }
+                    DataUpdate::LoginBan(code, reason, unban_time) => {
+                        format!(
+                            "login_ban;{};{};{unban_time}",
+                            code as u64,
                             BASE64_STANDARD.encode(reason)
                         )
                     }
-                    AdminAction::Kick(reason) => {
-                        format!("admin_action;2;{}", BASE64_STANDARD.encode(reason))
-                    }
-                },
-                DataUpdate::Banned(reason, unban_time) => {
-                    format!(
-                        "banned;{};{}",
-                        BASE64_STANDARD.encode(reason),
-                        unban_time.timestamp()
-                    )
-                }
-                DataUpdate::ChangeFriendStatus(status) => {
-                    format!("friend_status;{status}")
-                }
-                DataUpdate::Disconnected() => String::from("disconnected"),
-                DataUpdate::FetchBdb(name, value) => {
-                    if let Some(value) = value {
+                    DataUpdate::P2P(sender, mid, payload) => {
                         format!(
-                            "fetch_bdb;1;{};{}",
-                            BASE64_STANDARD.encode(name),
-                            BASE64_STANDARD.encode(value)
+                            "p2p;{};{mid};{}",
+                            if let Some(sender) = sender {
+                                sender.to_string()
+                            } else {
+                                String::from("!")
+                            },
+                            encode_vari(&Variable::Array(payload))
                         )
-                    } else {
-                        format!("fetch_bdb;0;{}", BASE64_STANDARD.encode(name))
                     }
-                }
-                DataUpdate::Kicked(reason) => {
-                    format!("kicked;{}", BASE64_STANDARD.encode(reason))
-                }
-                DataUpdate::Login(code) => {
-                    format!("login;{}", code as u64)
-                }
-                DataUpdate::LoginOk(pid, name) => {
-                    format!("login_ok;{pid};{}", BASE64_STANDARD.encode(name))
-                }
-                DataUpdate::LoginBan(code, reason, unban_time) => {
-                    format!(
-                        "login_ban;{};{};{unban_time}",
-                        code as u64,
-                        BASE64_STANDARD.encode(reason)
-                    )
-                }
-                DataUpdate::P2P(sender, mid, payload) => {
-                    format!(
-                        "p2p;{};{mid};{}",
-                        if let Some(sender) = sender {
-                            sender.to_string()
-                        } else {
-                            String::from("!")
-                        },
-                        encode_vari(&Variable::Array(payload))
-                    )
-                }
-                DataUpdate::Registration(code) => {
-                    format!("reg;{}", code as u64)
-                }
-                DataUpdate::PlayerLoggedIn(pid, name, room) => {
-                    format!(
-                        "player_logged_in;{pid};{};{}",
-                        BASE64_STANDARD.encode(name),
-                        BASE64_STANDARD.encode(room)
-                    )
-                }
-                DataUpdate::PlayerLoggedOut(pid) => {
-                    format!("player_logged_out;{pid}")
-                }
-                DataUpdate::Reconnecting() => String::from("reconnecting"),
-                DataUpdate::ServerMessage(message) => {
-                    format!("server_message;{}", BASE64_STANDARD.encode(message))
-                }
-                DataUpdate::UpdateVariable(pid, name, value) => {
-                    format!(
-                        "update_variable;{pid};{};{}",
-                        BASE64_STANDARD.encode(name),
-                        if let OptionalVariable::Some(value) = value {
-                            encode_vari(&value)
-                        } else {
-                            String::from("!")
-                        }
-                    )
-                }
-                DataUpdate::UpdateSyncVariable(pid, slot, name, value) => {
-                    format!(
-                        "update_sync_variable;{pid};{slot};{};{}",
-                        BASE64_STANDARD.encode(name),
-                        if let OptionalVariable::Some(value) = value {
-                            encode_vari(&value)
-                        } else {
-                            String::from("!")
-                        }
-                    )
-                }
-                DataUpdate::UpdateSyncRemoval(pid, slot) => {
-                    format!("update_sync_removal;{pid};{slot}")
-                }
-                DataUpdate::UpdateGameIni(file, section, key, value) => {
-                    format!(
-                        "update_gameini;{};{};{};{}",
-                        if let Some(file) = file {
-                            BASE64_STANDARD.encode(file)
-                        } else {
-                            String::from("!")
-                        },
-                        BASE64_STANDARD.encode(section),
-                        BASE64_STANDARD.encode(key),
-                        if let OptionalVariable::Some(value) = value {
-                            encode_vari(&value)
-                        } else {
-                            String::from("!")
-                        }
-                    )
-                }
-                DataUpdate::UpdatePlayerIni(file, section, key, value) => {
-                    format!(
-                        "update_playerini;{};{};{};{}",
-                        if let Some(file) = file {
-                            BASE64_STANDARD.encode(file)
-                        } else {
-                            String::from("!")
-                        },
-                        BASE64_STANDARD.encode(section),
-                        BASE64_STANDARD.encode(key),
-                        if let OptionalVariable::Some(value) = value {
-                            encode_vari(&value)
-                        } else {
-                            String::from("!")
-                        }
-                    )
-                }
-                DataUpdate::UpdateGameVersion(ver) => {
-                    format!("update_gameversion;{ver}")
-                }
-                DataUpdate::UpdateAdministrator(pid, admin) => {
-                    format!(
-                        "update_administrator;{pid};{}",
-                        if let Some(admin) = admin {
-                            format!("{}:{}:{}", admin.can_ban, admin.can_unban, admin.can_kick)
-                        } else {
-                            String::from("!")
-                        }
-                    )
-                }
-                DataUpdate::ServerNotification(notif) => {
-                    format!("server_notification;{}", BASE64_STANDARD.encode(notif))
-                }
-            });
-        }))
-        .await;
-    })
+                    DataUpdate::Registration(code) => {
+                        format!("reg;{}", code as u64)
+                    }
+                    DataUpdate::PlayerLoggedIn(pid, name, room) => {
+                        format!(
+                            "player_logged_in;{pid};{};{}",
+                            BASE64_STANDARD.encode(name),
+                            BASE64_STANDARD.encode(room)
+                        )
+                    }
+                    DataUpdate::PlayerLoggedOut(pid) => {
+                        format!("player_logged_out;{pid}")
+                    }
+                    DataUpdate::Reconnecting() => String::from("reconnecting"),
+                    DataUpdate::ServerMessage(message) => {
+                        format!("server_message;{}", BASE64_STANDARD.encode(message))
+                    }
+                    DataUpdate::UpdateVariable(pid, name, value) => {
+                        format!(
+                            "update_variable;{pid};{};{}",
+                            BASE64_STANDARD.encode(name),
+                            if let OptionalVariable::Some(value) = value {
+                                encode_vari(&value)
+                            } else {
+                                String::from("!")
+                            }
+                        )
+                    }
+                    DataUpdate::UpdateSyncVariable(pid, slot, name, value) => {
+                        format!(
+                            "update_sync_variable;{pid};{slot};{};{}",
+                            BASE64_STANDARD.encode(name),
+                            if let OptionalVariable::Some(value) = value {
+                                encode_vari(&value)
+                            } else {
+                                String::from("!")
+                            }
+                        )
+                    }
+                    DataUpdate::UpdateSyncRemoval(pid, slot) => {
+                        format!("update_sync_removal;{pid};{slot}")
+                    }
+                    DataUpdate::UpdateGameIni(file, section, key, value) => {
+                        format!(
+                            "update_gameini;{};{};{};{}",
+                            if let Some(file) = file {
+                                BASE64_STANDARD.encode(file)
+                            } else {
+                                String::from("!")
+                            },
+                            BASE64_STANDARD.encode(section),
+                            BASE64_STANDARD.encode(key),
+                            if let OptionalVariable::Some(value) = value {
+                                encode_vari(&value)
+                            } else {
+                                String::from("!")
+                            }
+                        )
+                    }
+                    DataUpdate::UpdatePlayerIni(file, section, key, value) => {
+                        format!(
+                            "update_playerini;{};{};{};{}",
+                            if let Some(file) = file {
+                                BASE64_STANDARD.encode(file)
+                            } else {
+                                String::from("!")
+                            },
+                            BASE64_STANDARD.encode(section),
+                            BASE64_STANDARD.encode(key),
+                            if let OptionalVariable::Some(value) = value {
+                                encode_vari(&value)
+                            } else {
+                                String::from("!")
+                            }
+                        )
+                    }
+                    DataUpdate::UpdateGameVersion(ver) => {
+                        format!("update_gameversion;{ver}")
+                    }
+                    DataUpdate::UpdateAdministrator(pid, admin) => {
+                        format!(
+                            "update_administrator;{pid};{}",
+                            if let Some(admin) = admin {
+                                format!("{}:{}:{}", admin.can_ban, admin.can_unban, admin.can_kick)
+                            } else {
+                                String::from("!")
+                            }
+                        )
+                    }
+                    DataUpdate::ServerNotification(notif) => {
+                        format!("server_notification;{}", BASE64_STANDARD.encode(notif))
+                    }
+                });
+            }))
+            .await;
+        })
+    }
 }
 
 #[no_mangle]
@@ -363,9 +369,8 @@ pub unsafe extern "cdecl" fn iter_other_players() -> *const i8 {
         pin_mut!(iter);
         let mut res = String::new();
         while let Some((pid, player)) = iter.next().await {
-            res.push_str(&format!("1:{};", encode_player(pid, &player)));
+            res.push_str(&format!("{};", encode_player(pid, &player)));
         }
-        res.push('0');
         let res = CString::new(res).unwrap();
         res.as_ptr()
     })
@@ -1106,13 +1111,16 @@ fn encode_player(pid: u64, player: &Player) -> String {
         player.variables.len()
     );
     for (index, sync) in player.syncs.iter().enumerate() {
-        s.push_str(&format!(":{}", encode_sync(index, sync)));
+        s.push_str(&format!(
+            ":{}",
+            BASE64_STANDARD.encode(encode_sync(index, sync))
+        ));
     }
     for (name, value) in &player.variables {
         s.push_str(&format!(
             ":{}:{}",
             BASE64_STANDARD.encode(name),
-            encode_vari(value)
+            BASE64_STANDARD.encode(encode_vari(value))
         ));
     }
     s
@@ -1132,7 +1140,7 @@ fn encode_sync(index: usize, sync: &Option<types::Sync>) -> String {
             s.push_str(&format!(
                 ":{}:{}",
                 BASE64_STANDARD.encode(name),
-                encode_vari(value)
+                BASE64_STANDARD.encode(encode_vari(value))
             ));
         }
         s
@@ -1209,7 +1217,7 @@ fn encode_vari(vari: &Variable) -> String {
         Variable::Array(val) => {
             let mut s = format!("5:{}", val.len());
             for val in val {
-                s.push_str(&BASE64_STANDARD.encode(format!(":{}", encode_vari(val))));
+                s.push_str(&format!(":{}", BASE64_STANDARD.encode(encode_vari(val))));
             }
             s
         }

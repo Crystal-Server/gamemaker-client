@@ -1,10 +1,3 @@
-/*enum CompressionType {
-    None = 0,
-    Zstd = 1,
-    Gzip = 2,
-    Zlib = 3,
-}*/
-
 enum LoginResult {
     OK = 0,
     NoAccount = 1,
@@ -59,2135 +52,554 @@ enum P2PCode {
     CurrentRoom = -7,
 }
 
-global.__socket = undefined;
-global.__game_id = "";
-global.__is_connected = false;
-global.__is_loggedin = false;
-global.__is_connecting = false;
-global.__version = 0.0;
-global.__session = "";
-global.__game_token = "";
-global.__current_room = "";
-global.__async_network_id = -1;
-
-global.__script_room = undefined;
-global.__script_p2p = undefined;
-global.__script_register = undefined;
-global.__script_login = undefined;
-global.__script_banned = undefined;
-global.__script_kicked = undefined;
-global.__script_disconnected = undefined;
-global.__script_login_token = undefined;
- 
-global.__player_id = -1;
-global.__player_name = "";
-global.__player_save = {};
-global.__player_open_save = "";
-
-global.__game_save = {};
-global.__game_open_save = "";
-global.__game_achievements = {};
-global.__game_highscores = {};
-global.__game_adminstrators = {};
-global.__game_version = 0.0;
-
-global.__players = {};
-global.__players_logout = [];
-global.__players_queue = {};
-global.__variables = {};
-global.__syncs = [];
-global.__syncs_remove = [];
-        
-global.__ping = 0.0;
-global.__last_ping = undefined;
-        
-global.__buffered_data = [];
-global.__new_sync_queue = [];
-global.__update_vari = [];
-global.__update_gameini = [];
-global.__update_playerini = [];
-global.__callback_other_vari = [];
-global.__call_disconnected = true;
-
-global.__streamed_data = undefined;
-global.__buffered_receiver = undefined;
-global.__buffered_receiver_size = 0;
-global.__handshake_completed = false;
-
-global.__encrypt = [
-	// Read
-	{
-		"key": int64(0),
-		"write_key": int64(0),
-		"salt": int64(0),
-		"current_byte": int64(0),
-		"algorithm": int64(0),
-		"reset_on": int64(0),
-		"current": int64(0),
-		"current_packet": int64(0),
-	},
-	// Write
-	{
-		"key": int64(0),
-		"write_key": int64(0),
-		"salt": int64(0),
-		"current_byte": int64(0),
-		"algorithm": int64(0),
-		"reset_on": int64(0),
-		"current": int64(0),
-		"current_packet": int64(0),
-	},
-];
-global.__recv_encrypt = false;
-
-#macro __ENCRYPT_READ 0
-#macro __ENCRYPT_WRITE 1
-
-function _encrypt_start(index) {
-	/*var e = global.__encrypt[index];
-	e.current_byte = 0;
-	e.current += 1;
-	if e.current >= e.reset_on {
-		e.current = 0;
-		e.current_packet += 1;
-		e.key = _encrypt_generate_next_batch(index, e.key, e.current_packet);
-	}
-	e.write_key = _encrypt_generate_next_batch(index, e.key, int64(e.current_packet));
-    show_debug_message("{0}->{1}", index, e);*/
+function Player() constructor {
+    id = -1;
+    name = "";
+    room = "";
+    syncs = [];
+    variables = {};
 }
 
-function _encrypt_next_byte(index) {
-	return 0x01;
-	/*var e = global.__encrypt[index];
-	e.current_byte += 1;
-	if e.current_byte != 0 && e.current_byte & 7 == 0
-		e.write_key = _encrypt_generate_next_batch(index, e.write_key, int64(e.current_packet) + int64(e.current_byte));
-	return (e.write_key >> (((8 - (e.current_byte & 7)) - 1) * 8)) & 0xff;*/
+function Sync() constructor {
+    //index = -1; // Is this really necessary?
+    kind = -1;
+    sync_type = -1;
+    event = -1;
+    is_ending = false;
+    variables = {};
 }
 
-function _encrypt_next_batch(index) {
-	return 0x0102030405060708;
-	/*var e = global.__encrypt[index];
-	e.current_byte += 1;
-	e.write_key = _encrypt_generate_next_batch(index, e.write_key, int64(e.current_packet) + int64(e.current_byte));
-	return e.write_key;*/
+function Administrator() constructor {
+    can_ban = false;
+    can_unban = false;
+    can_kick = false;
 }
 
-/*function _encrypt_generate_next_batch(index, current_key, position) {
-	var e = global.__encrypt[index];
-	current_key += e.salt;
-	//e.salt = ((e.salt + position) * 0x9e3779b97f4a7c15) ^ _encrypt_rotate_right(e.salt, 16);
-	e.salt = (e.salt + position) ^ _encrypt_rotate_right(e.salt, 16);
-	//e.salt += position;
-	switch e.algorithm {
-		case 0:
-			return _encrypt_rotate_left((current_key + position), position & 0x3f);
-		case 1:
-			return _encrypt_rotate_left(current_key ^ (current_key + position), position & 0x3f);
-		case 2:
-			return int64((current_key ^ _encrypt_rotate_left(current_key, position & 0x3f)) + position);
-		case 3:
-			return int64(~_encrypt_rotate_left(current_key ^ position, position & 0x3f) ^ current_key);
-		case 4:
-			return int64((_encrypt_rotate_left(current_key ^ position, 7) ^ current_key) + position);
-	}
-	return undefined;
-}*/
-
-/*function _encrypt_rotate_left(num, shift, bits = 64) {
-	shift = shift % bits;
-	return int64((num << shift) | (num >> (bits - shift)));
-}
-
-function _encrypt_rotate_right(num, shift, bits = 64) {
-	shift = shift % bits;
-	return int64((num >> shift) | (num << (bits - shift)));
-}*/
-
-function _buf_write_leb_u64(buf, val) {
-    while true {
-        var n = val & 0x7f;
-        val = val >> 7;
-        if val == 0 {
-            _buf_write(buf, buffer_u8, n);
-            break;
-        } else {
-            _buf_write(buf, buffer_u8, n | 0x80);
-        }
-    }
-}
-
-function _buf_write_i64(buf, val) {
-    _buf_write(buf, buffer_u64, int64(val)); // Hacky conversion, it mostly works
-}
-
-function _buf_write_bool(buf, val) {
-    _buf_write(buf, buffer_u8, real(val));
-}
-
-function _buf_write_string(buf, val) {
-    _buf_write_leb_u64(buf, string_byte_length(val));
-    //buffer_write(buf, buffer_text, val);
-	for (var i = 1; i <= string_byte_length(val); i++)
-		_buf_write(buf, buffer_u8, int64(string_byte_at(val, i)));
-}
-
-function _buf_write_bytes(buf, val) {
-    _buf_write_leb_u64(buf, buffer_tell(val));
-	for (var i = 0; i < buffer_tell(val); i++)
-		_buf_write(buf, buffer_u8, buffer_peek(val, i, buffer_u8));
-    /*buffer_resize(buf, buffer_tell(buf) + buffer_tell(val));
-    buffer_copy(val, 0, buffer_tell(val), buf, buffer_tell(buf));
-    buffer_seek(buf, buffer_seek_relative, buffer_tell(val));*/
-}
-
-function _buf_read_leb_u64(buf) {
-    var num = 0;
-    var shift = 0;
-    while true {
-        var val = _buf_read(buf, buffer_u8);
-        num |= (val & 0x7f) << shift;
-        if val & 0x80 == 0 {
-            break;
-        }
-        shift += 7;
-    }
-    return num;
-}
-
-function _buf_read_i64(buf) {
-	return int64(_buf_read(buf, buffer_u64)); // Least hacky GameMaker thing ever
-}
-
-function _buf_read_bool(buf) {
-    return _buf_read(buf, buffer_u8) != 0;
-}
-
-function _buf_read_string(buf) {
-    var size = _buf_read_leb_u64(buf);
-	if size == 0
-		return "";
-    var rbuf = buffer_create(size, buffer_fixed, 1);
-    buffer_copy(buf, buffer_tell(buf), size, rbuf, 0);
-    buffer_seek(buf, buffer_seek_relative, size);
-    for (var i = 0; i < size; i++)
-        buffer_poke(buf, i, buffer_u8, buffer_peek(buf, i, buffer_u8) ^ _encrypt_next_byte(__ENCRYPT_WRITE));
-    var res = buffer_read(rbuf, buffer_text);
-    buffer_delete(rbuf);
-    return res;
-}
-
-function _buf_read_bytes(buf) {
-    var size = _buf_read_leb_u64(buf);
-    var rbuf = buffer_create(size, buffer_fixed, 1);
-    buffer_copy(buf, buffer_tell(buf), size, rbuf, 0); 
-    buffer_seek(buf, buffer_seek_relative, size);
-    for (var i = 0; i < size; i++)
-        buffer_poke(buf, i, buffer_u8, buffer_peek(buf, i, buffer_u8) ^ _encrypt_next_byte(__ENCRYPT_WRITE));
-    return rbuf;
-}
-
-function _buf_write_map(buf, val) {
-    _buf_write_leb_u64(buf, ds_map_size(val));
-    var key = ds_map_find_first(val);
-    while key != undefined {
-        _buf_write_string(buf, string(key));
-        _buf_write_value(buf, ds_map_find_value(val, key));
-        key = ds_map_find_next(val, key);
-    }
-}
-
-function _buf_write_list(buf, val) {
-    _buf_write_leb_u64(buf, ds_list_size(val));
-    for (var i = 0; i < ds_list_size(val); i++) {
-        _buf_write_value(buf, ds_list_find_value(val, i));
-    }
-}
-
-function _buf_read_struct(buf) {
-    var map = {};
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        var key = _buf_read_string(buf);
-        struct_set(map, key, _buf_read_value(buf));
-    }
-    return map;
-}
-
-function _buf_read_array(buf) {
-    var list = [];
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        array_push(list, _buf_read_value(buf));
-    }
-    return list;
-}
-
-function _buf_write_struct(buf, val) {
-    var names = struct_get_names(val);
-    _buf_write_leb_u64(buf, array_length(names));
-    for (var i = 0; i < array_length(names); i++) {
-        var key = names[i];
-        _buf_write_string(buf, string(key));
-        _buf_write_value(buf, struct_get(val, key));
-    }
-}
-
-function _buf_write_array(buf, val) {
-    _buf_write_leb_u64(buf, array_length(val));
-    for (var i = 0; i < array_length(val); i++) {
-        _buf_write_value(buf, val[i]);
-    }
-}
-
-function _buf_encrypt(type, val, _type = __ENCRYPT_READ) {
-	switch type {
-		case buffer_u8:
-		case buffer_s8:
-			return val ^ _encrypt_next_byte(_type);
-		case buffer_u16:
-		case buffer_s16:
-			return val ^ (_encrypt_next_batch(_type) & 0xffff);
-		case buffer_u32:
-		case buffer_s32:
-			return val ^ (_encrypt_next_batch(_type) & 0xffffffff);
-		case buffer_u64:
-			return val ^ _encrypt_next_batch(_type);
-		case buffer_f16:
-			return val ^ (_encrypt_next_batch(_type) & 0xffff);
-		case buffer_f32:
-			return val ^ (_encrypt_next_batch(_type) & 0xffffffff);
-		case buffer_f64:
-			return val ^ _encrypt_next_batch(_type);
-		default:
-			show_error("Unsupported type: " + string(type), true);
-			break;
-	}
-}
-
-function _buf_read(buf, type) {
-    if !global.__recv_encrypt
-        return buffer_read(buf, type);
-	return _buf_encrypt(type, buffer_read(buf, type));
-}
-
-function _buf_write(buf, type, value) {
-	return buffer_write(buf, type, _buf_encrypt(type, value, __ENCRYPT_WRITE));
-}
-
-function _buf_write_value(buf, val) {
-    switch typeof(val) {
-        case "undefined":
-        case "null":
-            _buf_write(buf, buffer_u8, 0);
-            break;
-        case "bool":
-            _buf_write(buf, buffer_u8, 1);
-            _buf_write_bool(buf, val);
-            break;
-        case "int32":
-        case "int64":
-            _buf_write(buf, buffer_u8, 2);
-            _buf_write_i64(buf, int64(val));
-            break;
-        case "number":
-            _buf_write(buf, buffer_u8, 3);
-            _buf_write(buf, buffer_f64, val);
-            break;
-        case "string":
-            _buf_write(buf, buffer_u8, 4);
-            _buf_write_string(buf, val);
-            break;
-        case "array":
-            _buf_write(buf, buffer_u8, 5);
-            _buf_write_array(buf, val);
-            break;
-        case "struct":
-            _buf_write(buf, buffer_u8, 6);
-            _buf_write_struct(buf, val);
-            break;
-        case "ref":
-            if buffer_exists(val) {
-                _buf_write(buf, buffer_u8, 7);
-                _buf_write_bytes(buf, val);
-            } else if ds_exists(val, ds_type_list) {
-                _buf_write(buf, buffer_u8, 5);
-                _buf_write_list(buf, val);
-            } else if ds_exists(val, ds_type_map) {
-                _buf_write(buf, buffer_u8, 6);
-                _buf_write_map(buf, val);
-            } else {
-                show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-                _buf_write(buf, buffer_u8, 0);
-            }
-            break;
-        default:
-            show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-            _buf_write(buf, buffer_u8, 0);
-            break;
-    }
-}
-
-function _buf_read_value(buf) {
-    switch _buf_read(buf, buffer_u8) {
-        case 1:
-            return _buf_read_bool(buf);
-        case 2:
-            return _buf_read_i64(buf);
-        case 3:
-            return _buf_read(buf, buffer_f64);
-        case 4:
-            return _buf_read_string(buf);
-        case 5:
-            return _buf_read_array(buf);
-        case 6:
-            return _buf_read_struct(buf);
-        case 7:
-            return _buf_read_bytes(buf);
-        default:
-            return undefined;
-    }
-}
-
-function _buf_write_syncs(buf, val) {
-    _buf_write_leb_u64(buf, array_length(val));
-    for (var i = 0; i < array_length(val); i++) {
-        var sync = val[i];
-        if sync == undefined {
-            _buf_write_bool(buf, false);
-        } else {
-            _buf_write_bool(buf, true);
-            _buf_write(buf, buffer_s16, sync.kind);
-            _buf_write(buf, buffer_u8, sync.type);
-            _buf_write_struct(buf, sync.variables);
-        }
-    }
-}
-
-function _buf_read_syncs(buf) {
-    var val = [];
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        if _buf_read_bool(buf) {
-            var sync = _create_sync();
-            sync.kind = _buf_read(buf, buffer_s16);
-            sync.type = _buf_read(buf, buffer_u8);
-            sync.variables = _buf_read_struct(buf);
-            array_push(val, sync);
-        } else {
-            array_push(val, undefined);
-        }
-    }
-    return val;
-}
-
-function _buf_read_achievements(buf) {
-    var val = {};
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        var name = _buf_read_leb_u64(buf);
-        var achi = _create_achievement();
-        achi.name = _buf_read_string(buf);
-        achi.description = _buf_read_string(buf);
-        var players = {};
-        var psize = _buf_read_leb_u64(buf);
-        repeat psize {
-            var pname = _buf_read(buf, buffer_u64);
-            players[$ pname] = _buf_read_i64(buf);
-        }
-        achi.players = players;
-        val[$ name] = achi;
-    }
-    return val;
-}
-
-function _buf_read_highscores(buf) {
-    var val = {};
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        var name = _buf_read_leb_u64(buf);
-        var hsc = _create_highscore();
-        hsc.name = _buf_read_string(buf);
-        var scores = {};
-        var psize = _buf_read_leb_u64(buf);
-        repeat psize {
-            var sname = _buf_read(buf, buffer_u64);
-            scores[$ sname] = _buf_read(buf, buffer_f64);
-        }
-        hsc.scores = scores;
-        val[$ name] = hsc;
-    }
-    return val;
-}
-
-function _buf_read_administrators(buf) {
-    var val = {};
-    var size = _buf_read_leb_u64(buf);
-    repeat size {
-        var name = _buf_read_leb_u64(buf);
-        var admin = _create_administrator();
-        admin.can_kick = _buf_read_bool(buf);
-        admin.can_ban = _buf_read_bool(buf);
-        admin.can_unban = _buf_read_bool(buf);
-        val[$ name] = admin;
-    }
-    return val;
-}
-
-function _iter_buffered_data() {
-    var temp = [];
-    array_copy(temp, 0, global.__buffered_data, 0, array_length(global.__buffered_data));
-    array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
-    for (var i = 0; i < array_length(temp); i++) {
-        _buf_send(temp[i]);
-    }
-    array_delete(temp, 0, array_length(temp));
-}
-
-function _buf_send(buf) {
-    if global.__is_connected {
-        var nbuf = buffer_create(0, buffer_grow, 1);
-        /*if global.__compression == CompressionType.Zlib {
-            var pos = buffer_tell(buf);
-            var tnbuf = buffer_compress(buf, 0, pos);
-            buffer_seek(tnbuf, buffer_seek_end, 0); // Maybe?
-            buffer_delete(buf);
-            buf = tnbuf;
-        }*/
-		var event = buffer_peek(buf, 0, buffer_u8);
-        //_buf_write_leb_u64(nbuf, buffer_tell(buf));
-        //buffer_write(nbuf, buffer_u8, global.__compression);
-        buffer_resize(nbuf, buffer_tell(nbuf) + buffer_tell(buf));
-        buffer_copy(buf, 0, buffer_tell(buf), nbuf, buffer_tell(nbuf));
-        var r = network_send_raw(global.__socket, nbuf, buffer_tell(nbuf) + buffer_tell(buf));
-        buffer_delete(buf);
-        buffer_delete(nbuf);
-        show_debug_message("{1}->Sent {0} byte(s)", r, event);
-		if r < 0 {
-			global.__is_connected = false;
-            if global.__call_disconnected {
-                if global.__script_disconnected != undefined
-                    global.__script_disconnected();
-                global.__call_disconnected = false;
-            }
-            _crystal_clear_disconnected();
-		}
-    } else
-        array_push(global.__buffered_data, buf);
-}
-
-function _crystal_verify_init() {
-    return variable_global_exists("__crystal_object");
-}
-
-function _crystal_partial_clear_disconnected() {
-    global.__player_name = "";
-	global.__player_id = -1;
-	global.__player_save = {};
-    global.__player_open_save = "";
-	global.__players = {};
-    global.__players_queue = {};
-	global.__is_loggedin = false;
-	global.__is_connecting = false;
-	global.__is_connected = false;
-	array_delete(global.__players_logout, 0, array_length(global.__players_logout));
-	for (var i = 0; i < array_length(global.__buffered_data); i++) {
-        buffer_delete(global.__buffered_data[i]);
-    }
-	array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
-    array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
-    array_delete(global.__update_vari, 0, array_length(global.__update_vari));
-    array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
-    array_delete(global.__callback_other_vari, 0, array_length(global.__callback_other_vari));
-}
-
-function _crystal_clear_disconnected() {
-    _crystal_partial_clear_disconnected();
-    global.__game_save = {};
-    global.__game_open_save = "";
-    global.__game_achievements = {};
-    global.__game_highscores = {};
-    global.__game_adminstrators = {};
-    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
-    if global.__socket != undefined { // SAFETY: Don't try to destroy if it already got destroyed
-        network_destroy(global.__socket);
-        global.__socket = undefined;
-    }
-    global.__buffered_receiver_size = 0;
-    if global.__buffered_receiver != undefined { // SAFETY: Don't try to destroy if it already got destroyed
-        buffer_delete(global.__buffered_receiver);
-        global.__buffered_receiver = undefined;
-    }
-    global.__last_ping = undefined;
-}
+global.__crystal_dll = {
+    "init": external_define("crystal_dll.dll", "init", dll_cdecl, ty_real, 1, ty_string),
+    "connect": external_define("crystal_dll.dll", "connect", dll_cdecl, ty_real, 0),
+    "update": external_define("crystal_dll.dll", "update", dll_cdecl, ty_real, 1, ty_string),
+    "get_notification": external_define("crystal_dll.dll", "init", dll_cdecl, ty_string, 0),
+    "is_connected": external_define("crystal_dll.dll", "is_connected", dll_cdecl, ty_real, 0),
+    "is_connecting": external_define("crystal_dll.dll", "is_connecting", dll_cdecl, ty_real, 0),
+    "is_loggedin": external_define("crystal_dll.dll", "is_loggedin", dll_cdecl, ty_real, 0),
+    "get_ping": external_define("crystal_dll.dll", "get_ping", dll_cdecl, ty_real, 0),
+    "set_game_token": external_define("crystal_dll.dll", "set_game_token", dll_cdecl, ty_real, 1, ty_string),
+    "disconnect": external_define("crystal_dll.dll", "disconnect", dll_cdecl, ty_real, 0),
+    "login": external_define("crystal_dll.dll", "login", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "login_with_token": external_define("crystal_dll.dll", "login_with_token", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "register": external_define("crystal_dll.dll", "register", dll_cdecl, ty_real, 4, ty_string, ty_string, ty_string, ty_string),
+    "get_player_id": external_define("crystal_dll.dll", "get_player_id", dll_cdecl, ty_real, 0),
+    "get_player_name": external_define("crystal_dll.dll", "get_player_name", dll_cdecl, ty_string, 0),
+    "set_variable": external_define("crystal_dll.dll", "set_variable", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "remove_variable": external_define("crystal_dll.dll", "remove_variable", dll_cdecl, ty_real, 1, ty_string),
+    "iter_other_players": external_define("crystal_dll.dll", "iter_other_players", dll_cdecl, ty_string, 0),
+    "other_players_count": external_define("crystal_dll.dll", "other_players_count", dll_cdecl, ty_real, 0),
+    "get_other_player": external_define("crystal_dll.dll", "get_other_player", dll_cdecl, ty_real, 1, ty_real),
+    "get_other_player_name": external_define("crystal_dll.dll", "get_other_player_name", dll_cdecl, ty_real, 1, ty_string),
+    "request_other_player_variable": external_define("crystal_dll.dll", "request_other_player_variable", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real),
+    "p2p": external_define("crystal_dll.dll", "p2p", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string),
+    "set_version": external_define("crystal_dll.dll", "set_version", dll_cdecl, ty_real, 1, ty_real),
+    "get_version": external_define("crystal_dll.dll", "get_version", dll_cdecl, ty_real, 0),
+    "get_session": external_define("crystal_dll.dll", "get_session", dll_cdecl, ty_string, 0),
+    "get_open_playerini": external_define("crystal_dll.dll", "get_open_playerini", dll_cdecl, ty_string, 0),
+    "open_playerini": external_define("crystal_dll.dll", "open_playerini", dll_cdecl, ty_real, 1, ty_string),
+    "close_playerini": external_define("crystal_dll.dll", "close_playerini", dll_cdecl, ty_real, 0),
+    "has_playerini": external_define("crystal_dll.dll", "has_playerini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "get_playerini": external_define("crystal_dll.dll", "get_playerini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "set_playerini": external_define("crystal_dll.dll", "set_playerini", dll_cdecl, ty_real, 3, ty_string, ty_string, ty_string),
+    "remove_playerini": external_define("crystal_dll.dll", "remove_playerini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "get_open_gameini": external_define("crystal_dll.dll", "get_open_gameini", dll_cdecl, ty_string, 0),
+    "open_gameini": external_define("crystal_dll.dll", "open_gameini", dll_cdecl, ty_real, 1, ty_string),
+    "close_gameini": external_define("crystal_dll.dll", "close_gameini", dll_cdecl, ty_real, 0),
+    "has_gameini": external_define("crystal_dll.dll", "has_gameini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "get_gameini": external_define("crystal_dll.dll", "get_gameini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "set_gameini": external_define("crystal_dll.dll", "set_gameini", dll_cdecl, ty_real, 3, ty_string, ty_string, ty_string),
+    "remove_gameini": external_define("crystal_dll.dll", "remove_gameini", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "has_achievement": external_define("crystal_dll.dll", "has_achievement", dll_cdecl, ty_real, 1, ty_real),
+    "get_achievement": external_define("crystal_dll.dll", "get_achievement", dll_cdecl, ty_string, 1, ty_real),
+    "has_reached_achievement": external_define("crystal_dll.dll", "has_reached_achievement", dll_cdecl, ty_real, 1, ty_real),
+    "get_reached_achievement": external_define("crystal_dll.dll", "get_reached_achievement", dll_cdecl, ty_real, 1, ty_real),
+    "reach_achievement": external_define("crystal_dll.dll", "reach_achievement", dll_cdecl, ty_real, 1, ty_real),
+    "has_highscore": external_define("crystal_dll.dll", "has_highscore", dll_cdecl, ty_real, 1, ty_real),
+    "get_highscore": external_define("crystal_dll.dll", "get_highscore", dll_cdecl, ty_string, 1, ty_real),
+    "has_score_highscore": external_define("crystal_dll.dll", "has_score_highscore", dll_cdecl, ty_real, 1, ty_real),
+    "get_score_highscore": external_define("crystal_dll.dll", "get_score_highscore", dll_cdecl, ty_real, 1, ty_real),
+    "set_score_highscore": external_define("crystal_dll.dll", "set_score_highscore", dll_cdecl, ty_real, 2, ty_real, ty_real),
+    "create_sync": external_define("crystal_dll.dll", "create_sync", dll_cdecl, ty_real, 2, ty_real, ty_real),
+    "destroy_sync": external_define("crystal_dll.dll", "destroy_sync", dll_cdecl, ty_real, 1, ty_real),
+    "set_variable_sync": external_define("crystal_dll.dll", "set_variable_sync", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_string),
+    "remove_variable_sync": external_define("crystal_dll.dll", "remove_variable_sync", dll_cdecl, ty_real, 2, ty_real, ty_string),
+    "get_variable_other_sync": external_define("crystal_dll.dll", "get_variable_other_sync", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string),
+    "iter_other_syncs": external_define("crystal_dll.dll", "iter_other_syncs", dll_cdecl, ty_string, 0),
+    "is_player_admin": external_define("crystal_dll.dll", "is_player_admin", dll_cdecl, ty_real, 1, ty_real),
+    "get_player_admin": external_define("crystal_dll.dll", "get_player_admin", dll_cdecl, ty_string, 1, ty_real),
+    "player_kick": external_define("crystal_dll.dll", "player_kick", dll_cdecl, ty_real, 2, ty_real, ty_string),
+    "player_ban": external_define("crystal_dll.dll", "player_ban", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real),
+    "player_unban": external_define("crystal_dll.dll", "player_unban", dll_cdecl, ty_real, 1, ty_real),
+    "logout": external_define("crystal_dll.dll", "logout", dll_cdecl, ty_real, 0),
+    "request_other_sync_variable": external_define("crystal_dll.dll", "request_other_sync_variable", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_string, ty_real),
+    "fetch_bdb": external_define("crystal_dll.dll", "fetch_bdb", dll_cdecl, ty_real, 2, ty_string, ty_real),
+    "set_bdb": external_define("crystal_dll.dll", "set_bdb", dll_cdecl, ty_real, 2, ty_string, ty_string),
+    "get_incoming_friends": external_define("crystal_dll.dll", "get_incoming_friends", dll_cdecl, ty_string, 0),
+    "get_outgoing_friends": external_define("crystal_dll.dll", "get_outgoing_friends", dll_cdecl, ty_string, 0),
+    "get_friends": external_define("crystal_dll.dll", "get_friends", dll_cdecl, ty_string, 0),
+    "send_outgoing_friend": external_define("crystal_dll.dll", "send_outgoing_friend", dll_cdecl, ty_real, 1, ty_real),
+    "remove_outgoing_friend": external_define("crystal_dll.dll", "remove_outgoing_friend", dll_cdecl, ty_real, 1, ty_real),
+    "deny_incoming_friend": external_define("crystal_dll.dll", "deny_incoming_friend", dll_cdecl, ty_real, 1, ty_real),
+    "accept_incoming_friend": external_define("crystal_dll.dll", "accept_incoming_friend", dll_cdecl, ty_real, 1, ty_real),
+    "remove_friend": external_define("crystal_dll.dll", "remove_friend", dll_cdecl, ty_real, 1, ty_real),
+    //"": external_define("crystal_dll.dll", "", dll_cdecl, ty_real, 0),
+};
 
 function crystal_init(game_id) {
-    if !variable_global_exists("__crystal_object") {
-        global.__crystal_object = id;
-        global.__game_id = game_id;
-        if os_browser == browser_not_a_browser
-            global.__socket = network_create_socket(network_socket_tcp);
-        else
-            global.__socket = network_create_socket(network_socket_ws);
-    }
-}
-
-function crystal_step() {
-    if _crystal_verify_init() {
-        if global.__socket != undefined {
-            if !global.__is_connected && global.__is_loggedin
-                global.__is_loggedin = false;
-            if global.__is_connected {
-                if global.__last_ping != undefined {
-                    if (get_timer() - global.__last_ping) / 1000000 > 60 * 2 {
-                        global.__is_connected = false;
-                        if global.__call_disconnected {
-                            if global.__script_disconnected != undefined
-                                global.__script_disconnected();
-                            global.__call_disconnected = false;
-                        }
-                        _crystal_clear_disconnected();
-                    }
-                }
-                var r = _get_room();
-                var player_keys = struct_get_names(global.__players);
-                for (var i = 0; i < array_length(player_keys); i++) {
-                    var key = player_keys[i];
-                    var player = global.__players[$ key];
-                    var player_logged_out = array_contains(global.__players_logout, key);
-                    var is_all_undefined = true;
-                    for (var ii = 0; ii < array_length(player.syncs); ii++) {
-                        var sync = player.syncs[ii];
-                        if sync != undefined {
-                            is_all_undefined = false;
-                            if sync.event == SyncEvent.End
-                                player.syncs[ii] = undefined;
-                            if sync.type == CreateSync.Once
-                                sync.event = SyncEvent.End;
-                            if r != player.room || player_logged_out
-                                sync.event = SyncEvent.End;
-                        }
-                    }
-                    _iter_missing_data(key);
-                    if is_all_undefined && player_logged_out {
-                        struct_remove(global.__players, key);
-    					for (var ii = 0; ii < array_length(global.__players_logout); ii++) {
-    						if global.__players_logout[ii] == key {
-    							array_delete(global.__players_logout, ii, 1);
-    							break;
-    						}
-    					}
-                        var players_queue_keys = struct_get_names(global.__players_queue);
-                        for (var ii = 0; ii < array_length(players_queue_keys); ii++) {
-                            if global.__players_queue[$ players_queue_keys[ii]] == key {
-                                struct_remove(global.__players_queue, players_queue_keys[ii]);
-                                break;
-                            }
-                        }
-                    }
-                }
-                _iter_buffered_data();
-                if r != global.__current_room {
-                    var b = buffer_create(0, buffer_grow, 1);
-					_encrypt_start(__ENCRYPT_WRITE);
-                    _buf_write(b, buffer_u8, 11);
-                    _buf_write_string(b, r);
-                    _buf_send(b);
-                    global.__current_room = r;
-                }
-                if array_length(global.__syncs) > 0 || array_length(global.__syncs_remove) > 0 {
-                    var insts_iter = 0;
-					for (var i = 0; i < array_length(global.__syncs_remove); i++)
-	                    insts_iter++;
-	                for (var i = 0; i < array_length(global.__syncs); i++) {
-	                    var sync = global.__syncs[i];
-	                    if sync != undefined {
-	                        if array_length(sync.to_sync) > 0
-	                            insts_iter++;
-	                    }
-	                }
-                    if insts_iter > 0 {
-						_encrypt_start(__ENCRYPT_WRITE);
-                        var b = buffer_create(0, buffer_grow, 1);
-                        _buf_write(b, buffer_u8, 13);
-                        _buf_write_leb_u64(b, insts_iter);
-						for (var i = 0; i < array_length(global.__syncs_remove); i++) {
-	                        _buf_write(b, buffer_s16, global.__syncs_remove[i]);
-	                        _buf_write_bool(b, true);
-	                    }
-	    				array_delete(global.__syncs_remove, 0, array_length(global.__syncs_remove));
-	                    for (var i = 0; i < array_length(global.__syncs); i++) {
-	                        var sync = global.__syncs[i];
-	                        if sync != undefined {
-	                            if array_length(sync.to_sync) > 0 {
-	                                _buf_write(b, buffer_s16, i);
-	                                _buf_write_bool(b, false);
-	                                _buf_write_leb_u64(b, array_length(sync.to_sync));
-	                                for (var ii = 0; ii < array_length(sync.to_sync); ii++) {
-	                                    var to_sync = sync.to_sync[ii];
-	                                    _buf_write_string(b, to_sync);
-	                                    if struct_exists(sync.variables, to_sync)
-	                                        _buf_write_value(b, sync.variables[$ to_sync])
-	                                    else
-	                                        _buf_write(b, buffer_u8, 0xff);
-	                                }
-	                                sync.to_sync = [];
-	                            }
-	                        }
-	                    }
-                        _buf_send(b);
-                    }
-                }
-                if array_length(global.__new_sync_queue) > 0 {
-                    for (var i = 0; i < array_length(global.__new_sync_queue); i++) {
-                        var s = global.__new_sync_queue[i];
-						_encrypt_start(__ENCRYPT_WRITE);
-                        var b = buffer_create(0, buffer_grow, 1);
-                        _buf_write(b, buffer_u8, 12);
-                        _buf_write(b, buffer_u16, s.slot);
-                        _buf_write(b, buffer_s16, s.kind);
-                        _buf_write(b, buffer_u8, s.type);
-                        _buf_write_struct(b, global.__syncs[s.slot].variables);
-                        _buf_send(b);
-                        global.__syncs[s.slot].to_sync = [];
-                    }
-                    array_delete(global.__new_sync_queue, 0, array_length(global.__new_sync_queue));
-                }
-                if array_length(global.__update_vari) > 0 {
-					_encrypt_start(__ENCRYPT_WRITE);
-                    var b = buffer_create(0, buffer_grow, 1);
-                    _buf_write(b, buffer_u8, 7);
-                    _buf_write_leb_u64(b, array_length(global.__update_vari));
-                    for (var i = 0; i < array_length(global.__update_vari); i++) {
-                        var u = global.__update_vari[i];
-                        _buf_write_string(b, u.name);
-                        if u.removed
-                            _buf_write(b, buffer_u8, 0xff);
-                        else
-                            _buf_write_value(b, u.value);
-                    }
-                    array_delete(global.__update_vari, 0, array_length(global.__update_vari));
-    				_buf_send(b);
-                }
-                if array_length(global.__update_gameini) > 0 {
-					_encrypt_start(__ENCRYPT_WRITE);
-                    var b = buffer_create(0, buffer_grow, 1);
-                    _buf_write(b, buffer_u8, 9);
-                    _buf_write_leb_u64(b, array_length(global.__update_gameini));
-                    for (var i = 0; i < array_length(global.__update_gameini); i++) {
-                        var u = global.__update_gameini[i];
-                        _buf_write_string(b, u.name);
-                        if u.removed
-                            _buf_write(b, buffer_u8, 0xff);
-                        else
-                            _buf_write_value(b, u.value);
-                    }
-                    array_delete(global.__update_gameini, 0, array_length(global.__update_gameini));
-                    _buf_send(b);
-                }
-                if array_length(global.__update_playerini) > 0 {
-					_encrypt_start(__ENCRYPT_WRITE);
-                    var b = buffer_create(0, buffer_grow, 1);
-                    _buf_write(b, buffer_u8, 10);
-                    _buf_write_leb_u64(b, array_length(global.__update_playerini));
-                    for (var i = 0; i < array_length(global.__update_playerini); i++) {
-                        var u = global.__update_playerini[i];
-                        _buf_write_string(b, u.name);
-                        if u.removed
-                            _buf_write(b, buffer_u8, 0xff);
-                        else
-                            _buf_write_value(b, u.value);
-                    }
-                    array_delete(global.__update_playerini, 0, array_length(global.__update_playerini));
-                    _buf_send(b);
-                }
-            }
-        }
-    }
-}
-
-function crystal_async_networking() {
-	show_debug_message(json_encode(async_load));
-    if _crystal_verify_init() {
-        if async_load[? "id"] == global.__socket {
-            switch async_load[? "type"] {
-                case network_type_non_blocking_connect:
-                    global.__is_connecting = false;
-                    global.__is_connected = async_load[? "succeeded"];
-					if !global.__is_connected {
-						if global.__call_disconnected {
-	                        if global.__script_disconnected != undefined
-	                            global.__script_disconnected();
-	                        global.__call_disconnected = false;
-	                    }
-	                    _crystal_clear_disconnected();
-					}
-                    break;
-                case network_type_disconnect:
-                    global.__is_connected = false;
-                    if global.__call_disconnected {
-                        if global.__script_disconnected != undefined
-                            global.__script_disconnected();
-                        global.__call_disconnected = false;
-                    }
-                    _crystal_clear_disconnected();
-                    break;
-                case network_type_data:
-                    _handle_packet(async_load[? "buffer"]);
-                    break;
-            }
-        }
-    }
-}
-
-function _iter_missing_data(pid) {
-    if struct_exists(global.__players, pid) && struct_exists(global.__players_queue, pid) {
-        var player = global.__players[$ pid];
-        var pq = global.__players_queue[$ pid];
-        var pq_vari_names = struct_get_names(pq.variables);
-        for (var i = 0; i < array_length(pq_vari_names); i++) {
-            var vq = pq.variables[$ pq_vari_names[i]];
-            if vq.type == VariableQueueType.Set
-                player.variables[$ vq.name] = vq.value;
-            else if vq.type == VariableQueueType.Remove
-                struct_remove(player.variables, vq.name);
-        }
-        pq.variables = {};
-        for (var i = 0; i < array_length(player.syncs); i++) {
-            if player.syncs[i] == undefined && struct_exists(pq.syncs_new, i) {
-                var sn = pq.syncs_new[$ i];
-                var s = _create_sync();
-                s.event = SyncEvent.New;
-                s.kind = sn.kind;
-                s.type = sn.type;
-                s.variables = sn.variables;
-                player.syncs[i] = s;
-            }
-            if player.syncs[i] != undefined {
-                if struct_exists(pq.syncs_new, i)
-                    struct_remove(pq.syncs_new, i);
-                if struct_exists(pq.syncs, i) {
-                    var is = pq.syncs[$ i];
-                    var is_names = struct_get_names(is);
-                    for (var ii = 0; ii < array_length(is_names); ii++) {
-                        var vq = is[$ is_names[ii]];
-                        if vq.type == VariableQueueType.Set
-                            player.syncs[i].variables[$ vq.name] = vq.value;
-                        else if vq.type == VariableQueueType.Remove
-                            struct_remove(player.syncs[i].variables, vq.name);
-                    }
-                    struct_remove(pq.syncs, i);
-                }
-                if struct_exists(pq.syncs_remove, i) {
-                    player.syncs[i].event = SyncEvent.End;
-                    struct_remove(pq.syncs_remove, i);
-                }
-            }
-        }
-        struct_remove(global.__players_queue, pid);
-    }
-}
-
-function _create_synciter() {
-    return {
-        "event": SyncEvent.New,
-        "kind": -1,
-        "variables": {},
-        "player_id": -1,
-        "player_name": "",
-        "slot": -1,
-    };
-}
-
-function _create_administrator() {
-    return {
-        "can_kick": false,
-        "can_ban": false,
-        "can_unban": false,
-    };
-}
-
-function _create_sync() {
-    return {
-        "kind": -1,
-        "type": CreateSync.Full,
-        "event": SyncEvent.New,
-        "variables": {},
-        "to_sync": [],
-    };
-}
-
-function _create_newsyncqueue() {
-    return {
-        "slot": -1,
-        "kind": -1,
-        "type": CreateSync.Full,
-    };
-}
-
-function _create_updatevari() {
-    return {
-        "removed": false,
-        "name": "",
-        "value": undefined,
-    };
-} 
-
-function _create_player() {
-    return {
-        "id": -1,
-        "name": "",
-        "room": "",
-        "syncs": [],
-        "variables": {},
-    };
-}
-
-function _create_achievement() {
-    return {
-        "name": "",
-        "description": "",
-        "players": {},
-    };
-}
-
-function _create_highscore() {
-    return {
-        "name": "",
-        "scores": {},
-    };
-}
-
-function _create_playerqueue() {
-    return {
-        "variables": {},
-        "syncs": {},
-        "syncs_remove": {},
-        "syncs_new": {},
-    };
-}
-
-function _create_syncnew() {
-    return {
-        "slot": -1,
-        "type": CreateSync.Full,
-        "kind": -1,
-        "variables": {},
-    };
-}
-
-function _create_variablequeue() {
-    return {
-        "type": VariableQueueType.Null,
-        "name": "",
-        "value": undefined,
-    }
-}
-
-function _handle_packet(buf) {
-    if global.__recv_encrypt
-        _encrypt_start(__ENCRYPT_READ);
-    var event = _buf_read(buf, buffer_u8);
-    show_debug_message("Handling event {0}...", event);
-    switch event {
-        case 0: // Registration
-            var code = _buf_read(buf, buffer_u8);
-            if global.__script_register != undefined
-                global.__script_register(code);
-            break;
-        case 1: // Login
-            code = _buf_read(buf, buffer_u8);
-            var token = "";
-            switch code {
-                case LoginResult.OK:
-                    global.__is_loggedin = true;
-                    global.__player_id = _buf_read_leb_u64(buf);
-                    global.__player_name = _buf_read_string(buf);
-                    if _buf_read_bool(buf)
-                        token = _buf_read_string(buf);
-                    global.__player_save = _buf_read_struct(buf);
-                    break;
-                case LoginResult.GameBan:
-                    var reason = _buf_read_string(buf);
-                    var unban_time = _buf_read_i64(buf);
-                    if global.__script_login != undefined
-                        global.__script_login(code, unban_time, reason);
-                    break;
-            }
-            if code != LoginResult.GameBan && global.__script_login != undefined
-                global.__script_login(code);
-            if string_length(token) != 0 && global.__script_login_token != undefined
-                global.__script_login_token(token);
-            break;
-        case 2: // User logged in
-            var _player_id = _buf_read_leb_u64(buf);
-            var name = _buf_read_string(buf);
-            var _room = _buf_read_string(buf);
-            var variables = _buf_read_struct(buf);
-            var syncs = _buf_read_syncs(buf);
-            
-            _iter_missing_data(_player_id);
-            
-            var player = _create_player();
-            player.id = _player_id;
-            player.name = name;
-            player.variables = variables;
-            player.syncs = syncs;
-            player.room = _room;
-            global.__players[$ _player_id] = player;
-            break;
-        case 3: // User logged out
-            array_push(global.__players_logout, _buf_read_leb_u64(buf));
-            break;
-        case 4: // Sync game info
-            global.__game_save = _buf_read_struct(buf);
-            global.__game_achievements = _buf_read_achievements(buf);
-            global.__game_highscores = _buf_read_highscores(buf);
-            global.__game_adminstrators = _buf_read_administrators(buf);
-            global.__game_version = _buf_read(buf, buffer_f64);
-            global.__handshake_completed = true;
-            global.__last_ping = get_timer();
-            break;
-        case 5: // P2P
-            _player_id = _buf_read_leb_u64(buf);
-            var message_id = _buf_read(buf, buffer_u16);
-            var arr = _buf_read_array(buf);
-            if global.__script_p2p != undefined
-                global.__script_p2p(message_id, _player_id, arr);
-            break;
-        case 6: // Sync player variable
-            _player_id = _buf_read_leb_u64(buf);
-            _iter_missing_data(_player_id);
-            var amount = _buf_read_leb_u64(buf);
-            for (var i = 0; i < amount; i++) {
-                name = _buf_read_string(buf);
-                var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
-                buffer_seek(buf, buffer_seek_relative, -1);
-                var value = _buf_read_value(buf);
-                if struct_exists(global.__players, _player_id) {
-                    player = global.__players[$ _player_id];
-                    if remove_vari
-                        struct_remove(player.variables, name);
-                    else
-                        player.variables[$ name] = value;
-                } else {
-                    _check_players_queue(_player_id);
-                    var pq = global.__players_queue[$ _player_id];
-                    var vq = _create_variablequeue();
-                    vq.name = name;
-                    if remove_vari
-                        vq.type = VariableQueueType.Remove;
-                    else
-                        vq.type = VariableQueueType.Set;
-                    vq.value = value;
-                    pq.variables[$ name] = vq;
-                }
-            }
-            break;
-        case 7: // Ping
-            switch _buf_read(buf, buffer_u8) {
-                case 0:
-					_encrypt_start(__ENCRYPT_WRITE);
-                    var wb = buffer_create(0, buffer_grow, 1);
-                    _buf_write(wb, buffer_u8, 8);
-                    _buf_send(wb);
-                    break;
-                case 1:
-                    global.__ping = _buf_read(buf, buffer_f64);
-                    global.__last_ping = get_timer();
-                    break;
-            }
-            break;
-        case 8: // Clear players
-            global.__players = {};
-            global.__players_queue = {};
-            break;
-        case 9: // Game ini write
-            var size = _buf_read_leb_u64(buf);
-            repeat size {
-                name = _buf_read_string(buf);
-                var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
-                buffer_seek(buf, buffer_seek_relative, -1);
-                var vari = _buf_read_value(buf);
-                if remove_vari
-                    struct_remove(global.__game_save, name);
-                else
-                    global.__game_save[$ name] = vari;
-            }
-            break;
-        case 10: // New sync
-            _player_id = _buf_read_leb_u64(buf);
-            var slot = _buf_read(buf, buffer_u16);
-            var kind = _buf_read(buf, buffer_s16);
-            var type = _buf_read(buf, buffer_u8);
-            variables = _buf_read_struct(buf);
-            if struct_exists(global.__players, _player_id) {
-                _iter_missing_data(_player_id);
-                player = global.__players[$ _player_id];
-                while array_length(player.syncs) <= slot
-                    array_push(player.syncs, undefined);
-                var sync = _create_sync();
-                sync.event = SyncEvent.New;
-                sync.kind = kind;
-                sync.type = type;
-                sync.variables = variables;
-                player.syncs[slot] = sync;
-            } else {
-                _check_players_queue(_player_id);
-                var pq = global.__players_queue[$ _player_id];
-                var sn = _create_syncnew();
-                sn.slot = slot;
-                sn.kind = kind;
-                sn.type = type;
-                sn.variables = variables;
-                pq.syncs_new[$ slot] = sn;
-            }
-            break;
-        case 11: // Player changed rooms
-            _player_id = _buf_read_leb_u64(buf);
-            _room = _buf_read_string(buf);
-            if struct_exists(global.__players, _player_id) {
-                _iter_missing_data(_player_id);
-                global.__players[$ _player_id].room = _room;
-            }
-            break;
-        case 12: // Update sync
-            _player_id = _buf_read_leb_u64(buf);
-            _iter_missing_data(_player_id);
-            syncs = struct_exists(global.__players, _player_id) ? global.__players[$ _player_id].syncs : [];
-            amount = _buf_read_leb_u64(buf);
-            for (var i = 0; i < amount; i++) {
-                slot = _buf_read(buf, buffer_u16);
-                if _buf_read_bool(buf) { // Remove sync
-                    if slot >= array_length(syncs) || syncs[slot] == undefined {
-                        _check_players_queue(_player_id);
-                        global.__players_queue[$ _player_id].syncs_remove[$ slot] = 0;
-                    } else
-                        global.__players[$ _player_id].syncs[slot].event = SyncEvent.End;
-                } else { // Update variables
-                    var amount1 = _buf_read_leb_u64(buf);
-                    for (var ii = 0; ii < amount1; ii++) {
-                        name = _buf_read_string(buf);
-                        var remove_vari = _buf_read(buf, buffer_u8) == 0xff;
-                        buffer_seek(buf, buffer_seek_relative, -1);
-                        var value = _buf_read_value(buf);
-                        if slot >= array_length(syncs) || syncs[slot] == undefined {
-                            _check_players_queue(_player_id);
-                            var pq = global.__players_queue[$ _player_id];
-                            if !struct_exists(pq.syncs, slot)
-                                pq.syncs[$ slot] = {};
-                            var vq = _create_variablequeue();
-                            vq.name = name;
-                            vq.type = remove_vari ? VariableQueueType.Remove : VariableQueueType.Set;
-                            vq.value = value;
-                            pq.syncs[$ slot][$ name] = vq;
-                        } else if remove_vari
-                            struct_remove(syncs[slot].variables, name);
-                        else
-                            syncs[slot].variables[$ name] = value;
-                    }
-                }
-            }
-            break;
-        case 13: // Highscore update
-            var highscore_id = _buf_read_leb_u64(buf);
-            var highscore_user = _buf_read_leb_u64(buf);
-            var highscore_score = _buf_read(buf, buffer_f64);
-            if !struct_exists(global.__game_highscores, highscore_id) {
-                var highscore = _create_highscore();
-                highscore.id = highscore_id;
-                global.__game_highscores[$ highscore_id] = highscore;
-            }
-            global.__game_highscores[$ highscore_id].scores[$ highscore_user] = highscore_score;
-            break;
-        case 14: // Update syncs and variables
-            _player_id = _buf_read_leb_u64(buf);
-            syncs = _buf_read_syncs(buf);
-            variables = _buf_read_struct(buf);
-            if struct_exists(global.__players, _player_id) {
-                player = global.__players[$ _player_id];
-                player.syncs = syncs;
-                player.variables = variables;
-            }
-            break;
-        case 15: // Request variable from another player
-            _player_id = _buf_read_leb_u64(buf);
-            var index = _buf_read(buf, buffer_u16);
-            if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
-                return;
-            var callback = global.__callback_other_vari[index];
-            name = callback[0];
-            var func = callback[1];
-            var value = _buf_read_value(buf);
-            if struct_exists(global.__players, _player_id) {
-                global.__players[$ _player_id].variables[$ name] = value;
-                func(_player_id, name, value);
-            }
-            global.__callback_other_vari[index] = undefined;
-            break;
-        case 16: // Banned / Kicked from the game
-            var action = _buf_read(buf, buffer_u8);
-            var reason = _buf_read_string(buf);
-            switch action {
-                case 0: // Banned
-                    var time = _buf_read_i64(buf);
-                    if global.__script_banned != undefined
-                        global.__script_banned(time, reason);
-                    else if global.__script_disconnected != undefined
-                        global.__script_disconnected();
-                    break;
-                case 1: // Kicked
-                    if global.__script_kicked != undefined
-                        global.__script_kicked(reason);
-                    else if global.__script_disconnected != undefined
-                        global.__script_disconnected();
-                    break;
-            }
-            _crystal_partial_clear_disconnected();
-            break;
-        case 17: // Request sync variable of another player
-            _player_id = _buf_read_leb_u64(buf);
-            index = _buf_read(buf, buffer_u16);
-            _iter_missing_data(_player_id);
-            if index >= array_length(global.__callback_other_vari) || global.__callback_other_vari[index] == undefined
-                return;
-            callback = global.__callback_other_vari[index];
-            name = callback[0];
-            func = callback[1];
-            slot = callback[2];
-            var remove_vari = _buf_read(buf, buffer_u8);
-            buffer_seek(buf, buffer_seek_relative, -1);
-            value = _buf_read_value(buf);
-            if struct_exists(global.__players, _player_id) {
-                var sync = global.__players[$ _player_id].syncs[slot];
-                if remove_vari
-                    struct_remove(sync.variables, name);
-                else
-                    sync.variables[$ name] = value;
-                func(_player_id, name, value);
-            }
-            global.__callback_other_vari[index] = undefined;
-            break;
-        case 18: // Update game server version
-            global.__game_version = _buf_read(buf, buffer_f64);
-            break;
-        case 19: // Add administrator
-			if _buf_read_bool(buf) {
-	            var admin = _create_administrator();
-	            admin.id = _buf_read_leb_u64(buf);
-	            admin.can_kick = _buf_read_bool(buf);
-	            admin.can_ban = _buf_read_bool(buf);
-	            admin.can_unban = _buf_read_bool(buf);
-	            global.__game_adminstrators[$ admin.id] = admin;
-			} else {
-				var admin = _buf_read_leb_u64(buf);
-				struct_remove(global.__game_adminstrators, admin);
-			}
-            break;
-		case 20: // Forced disconnection
-			global.__is_connected = false;
-            if global.__call_disconnected {
-                if global.__script_disconnected != undefined
-                    global.__script_disconnected();
-                global.__call_disconnected = false;
-            }
-            _crystal_clear_disconnected();
-			break;
-        case 21: // Player ini write
-            size = _buf_read_leb_u64(buf);
-            repeat size {
-                name = _buf_read_string(buf);
-                remove_vari = _buf_read(buf, buffer_u8) == 0xff;
-                buffer_seek(buf, buffer_seek_relative, -1);
-                var vari = _buf_read_value(buf);
-                if remove_vari
-                    struct_remove(global.__player_save, name);
-                else
-                    global.__player_save[$ name] = vari;
-            }
-            break;
-		case 22: // Request BDB
-			index = _buf_read_leb_u64(buf);
-			var data = undefined;
-			if _buf_read_bool(buf) {
-				data = _buf_read_bytes(buf);
-			}
-			break;
-		case 23: // Change Friend Status
-			var mode = _buf_read(buf, buffer_u8);
-			var pid = _buf_read_leb_u64(buf);
-			break;
-        case 24: // Handshake data
-            var write_key = _buf_read_i64(buf);
-            var write_salt = _buf_read_i64(buf);
-            var write_reseton = _buf_read(buf, buffer_u8);
-            var write_algorithm = _buf_read(buf, buffer_u8);
-            var read_key = _buf_read_i64(buf);
-            var read_salt = _buf_read_i64(buf);
-            var read_reseton = _buf_read(buf, buffer_u8);
-            var read_algorithm = _buf_read(buf, buffer_u8);
-            global.__encrypt[__ENCRYPT_WRITE].key = write_key;
-            global.__encrypt[__ENCRYPT_WRITE].salt = write_salt;
-            global.__encrypt[__ENCRYPT_WRITE].reset_on = write_reseton;
-            global.__encrypt[__ENCRYPT_WRITE].algorithm = write_algorithm;
-			
-            global.__encrypt[__ENCRYPT_READ].key = read_key;
-            global.__encrypt[__ENCRYPT_READ].salt = read_salt;
-            global.__encrypt[__ENCRYPT_WRITE].reset_on = read_reseton;
-            global.__encrypt[__ENCRYPT_READ].algorithm = read_algorithm;
-			
-			global.__recv_encrypt = true;
-			
-            show_debug_message(string(global.__encrypt));
-            _encrypt_start(__ENCRYPT_WRITE);
-            var b = buffer_create(0, buffer_grow, 1);
-            _buf_write(b, buffer_u8, 0);
-            _buf_write(b, buffer_u64, 0x3a0b1a04c51a2811);
-            _buf_write(b, buffer_u64, 0x97a18f1dc9ee891d);
-            _buf_write(b, buffer_u64, 0xfc7eb64f732a37fd);
-            _buf_write(b, buffer_u64, 0xbe65cbabde15c305);
-            _buf_write_leb_u64(b, 1);
-            var device_info = os_get_info();
-            _buf_write_string(b, is_undefined(device_info[? "udid"]) ? "" : device_info[? "udid"]);
-            ds_map_destroy(device_info);
-            _buf_write_string(b, global.__game_id);
-            _buf_write(b, buffer_f64, global.__version);
-            _buf_write_string(b, global.__session);
-            _buf_send(b);
-            break;
-    }
-}
-
-function _get_room() {
-    if global.__script_room != undefined
-        return string(global.__script_room());
-    return string(room);
-}
-
-function _uri_encode(str) {
-    var encoded = "";
-    for (var i = 1; i <= string_length(str); i++) {
-        var char = string_char_at(str, i);
-        var convert = true;
-        if string_byte_length(char) == 1 {
-            var byte = string_byte_at(char, 1);
-            // This also doesn't convert the "reserved characters"
-            if (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a) || (byte >= 0x30 && byte <= 0x39) ||
-                byte == 0x2d || byte == 0x5f || byte == 0x2e || byte == 0x21 || byte == 0x7e || byte == 0x2a ||
-                byte == 0x27 || byte == 0x28 || byte == 0x29 || byte == 0x3b || byte == 0x2f || byte == 0x3f ||
-                byte == 0x3a || byte == 0x40 || byte == 0x26 || byte == 0x3d || byte == 0x2b || byte == 0x24 ||
-                byte == 0x2c || byte == 0x23 {
-                    convert = false;
-            }
-        }
-        if convert {
-            var hexes = [];
-            for (var ii = 1; ii <= string_byte_length(char); ii++) {
-                var hex = "";
-                var num = string_byte_at(char, ii);
-                while num > 0 {
-                    hex = string_char_at("0123456789abcdef", (num & 0xf) + 1) + hex;
-                    num = num >> 4;
-                }
-                array_push(hexes, hex);
-            }
-            for (var ii = 0; ii < array_length(hexes); ii++) {
-                var hex = hexes[ii];
-                encoded += "%" + (string_length(hex) == 1 ? "0" + hex : hex);
-            }
-        } else
-            encoded += char;
-    }
-    return encoded;
-}
-
-function _uri_decode(str) {
-    var decoded = "";
-    var is_decoding = false;
-    var index_decoding = 0;
-    var bytes = "";
-    var decoding_data = "";
-    var expected_decoder = 0;
-    for (var i = 1; i <= string_length(str); i++) {
-        var char = string_char_at(str, i);
-        if is_decoding {
-            decoding_data += char;
-            index_decoding++;
-            if index_decoding == 2 {
-                var num = 0;
-                for (var ii = 1; ii <= string_length(decoding_data); ii++)
-                    num = num << 4 | (string_pos(string_lower(string_char_at(decoding_data, ii)), "0123456789abcdef") - 1);
-                if num & 0b11000000 == 0b11000000 {
-                    if num & 0b11110000 == 0b11110000
-                        expected_decoder = 3;
-                    else if num & 0b11100000 == 0b11100000
-                        expected_decoder = 2;
-                    else
-                        expected_decoder = 1;
-                    bytes += string_set_byte_at(" ", 1, num);
-                } else if num & 0b10000000 == 0b10000000 {
-                    if expected_decoder > 0 {
-                        expected_decoder--;
-                        if expected_decoder == 0 {
-                            decoded += bytes + string_set_byte_at(" ", 1, num);
-                            bytes = "";
-                        } else
-                            bytes += string_set_byte_at(" ", 1, num);
-                    } else
-                        show_error("Unexpected continuation byte", false);
-                } else if expected_decoder > 0
-                    show_error("Expected continuation byte", false);
-                else
-                    decoded += string_set_byte_at(" ", 1, num);
-                is_decoding = false;
-                index_decoding = 0;
-                decoding_data = "";
-            }
-        } else if char == "%"
-            is_decoding = true;
-        else
-            decoded += char;
-    }
-    return decoded;
-}
-
-function _get_unix_time() {
-    var timezone = date_get_timezone();
-    date_set_timezone(timezone_utc);
-    var timestamp = date_second_span(date_create_datetime(1970, 1, 1, 0, 0, 0), date_current_datetime());
-    date_set_timezone(timezone);
-    return timestamp;
-}
-
-function _get_value_valid(val) {
-    switch typeof(val) {
-        case "undefined":
-        case "null":
-            return undefined;
-        case "bool":
-            return val;
-        case "int32":
-        case "int64":
-            return val;
-        case "number":
-            return val;
-        case "string":
-            return val;
-        case "array":
-            return val;
-        case "struct":
-            return val;
-        case "ref":
-            if buffer_exists(val) {
-                return val;
-            } else if ds_exists(val, ds_type_list) {
-                return val;
-            } else if ds_exists(val, ds_type_map) {
-                return val;
-            } else {
-                show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-                return undefined;
-            }
-        default:
-            show_debug_message("Unknown value type: {0}, defaulting to undefined", val);
-            return undefined;
-    }
-}
-
-function _get_save_key(file, section, key) {
-    return (string_length(file) != 0 ? (_uri_encode(file) + ">") : "") + _uri_encode(section) + ">" + _uri_encode(key);
-}
-
-function _check_players_queue(pid) {
-    if !struct_exists(global.__players_queue, pid)
-        global.__players_queue[$ pid] = _create_playerqueue();
+    return external_call(global.__crystal_dll[$ "init"], game_id);
 }
 
 function crystal_connect() {
-    if _crystal_verify_init() {
-        if global.__is_connected
-            return;
-        if global.__socket != undefined
-            network_destroy(global.__socket);
-        /*if os_browser == browser_not_a_browser
-                global.__socket = network_create_socket(network_socket_tcp);
-            else
-                global.__socket = network_create_socket(network_socket_ws);*/
-        global.__socket = network_create_socket(network_socket_ws);
-        /*var port = 16562;
-        if os_browser == browser_not_a_browser {
-            port = 16561;
-        }*/
-        for (var i = 0; i < array_length(global.__buffered_data); i++)
-            buffer_delete(global.__buffered_data[i]);
-        array_delete(global.__buffered_data, 0, array_length(global.__buffered_data));
-        global.__call_disconnected = true;
-        global.__is_connecting = true;
-        global.__handshake_completed = false;
-        global.__recv_encrypt = false;
-        /*var __a = "server";
-        var __b = ".";
-        global.__async_network_id = network_connect_raw_async(global.__socket, __a + __b + "crystal-server.co", 16562);*/
-		global.__async_network_id = network_connect_raw_async(global.__socket, "127.0.0.1", 16562);
-        if global.__async_network_id < 0 {
-            global.__is_connected = false;
-            global.__is_connecting = false;
-            if global.__call_disconnected {
-                if global.__script_disconnected != undefined
-                    global.__script_disconnected();
-                global.__call_disconnected = false;
-            }
-            _crystal_clear_disconnected();
-        }
+    return external_call(global.__crystal_dll[$ "connect"]);
+}
+
+function crystal_update() {
+    var notf = external_call(global.__crystal_dll[$ "get_notification"]);
+    while string_length(notf) > 0 {
+        // TODO: Handle notifications
+        notf = external_call(global.__crystal_dll[$ "get_notification"]);
     }
+    return external_call(global.__crystal_dll[$ "update"]);
 }
 
-function crystal_disconnect() {
-    network_destroy(global.__socket);
-    global.__is_connected = false;
-    global.__is_connecting = false;
-    _crystal_clear_disconnected();
+function crystal_is_connected() {
+    return external_call(global.__crystal_dll[$ "is_connected"]);
 }
 
-function crystal_info_is_connecting() {
-    return global.__is_connecting || (!global.__handshake_completed && global.__is_connected);
+function crystal_is_connecting() {
+    return external_call(global.__crystal_dll[$ "is_connecting"]);
 }
 
-function crystal_script_set_room(script) {
-    global.__script_room = script;
+function crystal_is_loggedin() {
+    return external_call(global.__crystal_dll[$ "is_loggedin"]);
 }
 
-function crystal_script_set_p2p(script) {
-    global.__script_p2p = script;
-}
-
-function crystal_script_set_register(script) {
-    global.__script_register = script;
-}
-
-function crystal_script_set_login(script) {
-    global.__script_login = script;
-}
-
-function crystal_script_set_banned(script) {
-    global.__script_banned = script;
-}
-
-function crystal_script_set_kicked(script) {
-    global.__script_kicked = script;
-}
-
-function crystal_script_set_disconnected(script) {
-    global.__script_disconnected = script;
-}
-
-function crystal_script_set_login_token(script) {
-    global.__script_login_token = script;
-}
-
-function crystal_login(username, password) {
-	_encrypt_start(__ENCRYPT_WRITE);
-    var b = buffer_create(0, buffer_grow, 1);
-    _buf_write(b, buffer_u8, 1);
-    _buf_write_string(b, username);
-    _buf_write_bool(b, false);
-    _buf_write_string(b, password);
-    _buf_write_string(b, global.__game_token);
-    _buf_write_struct(b, global.__variables);
-    _buf_write_syncs(b, global.__syncs);
-    var r = _get_room();
-    _buf_write_string(b, r);
-    global.__current_room = r;
-    _buf_send(b);
-}
-
-function crystal_login_with_token(username, token) {
-	_encrypt_start(__ENCRYPT_WRITE);
-    var b = buffer_create(0, buffer_grow, 1);
-    _buf_write(b, buffer_u8, 1);
-    _buf_write_string(b, username);
-    _buf_write_bool(b, true);
-    _buf_write_string(b, token);
-    _buf_write_string(b, global.__game_token);
-    _buf_write_struct(b, global.__variables);
-    _buf_write_syncs(b, global.__syncs);
-    var r = _get_room();
-    _buf_write_string(b, r);
-    global.__current_room = r;
-    _buf_send(b);
+function crystal_get_ping() {
+    return external_call(global.__crystal_dll[$ "get_ping"]);
 }
 
 function crystal_set_game_token(token) {
-    global.__game_token = token;
+    return external_call(global.__crystal_dll[$ "set_game_token"], token);
 }
 
-function crystal_register(username, email, password, repeat_password) {
-	_encrypt_start(__ENCRYPT_WRITE);
-    var b = buffer_create(0, buffer_grow, 1);
-    _buf_write(b, buffer_u8, 2);
-    _buf_write_string(b, username);
-    _buf_write_string(b, email);
-    _buf_write_string(b, password);
-    _buf_write_string(b, repeat_password);
-    _buf_send(b);
+function crystal_disconnect() {
+    return external_call(global.__crystal_dll[$ "disconnect"]);
 }
 
-function crystal_info_get_ping() {
-    return global.__ping;
+function crystal_login(name, passw) {
+    return external_call(global.__crystal_dll[$ "login"], name, passw);
 }
 
-function crystal_info_is_connected() {
-    return global.__is_connected;
+function crystal_login_with_token(name, token) {
+    return external_call(global.__crystal_dll[$ "login_with_token"], name, token);
 }
 
-function crystal_info_is_loggedin() {
-    return global.__is_loggedin && global.__is_connected;
+function crystal_register(name, email, passw, repeat_passw) {
+    return external_call(global.__crystal_dll[$ "register"]);
 }
 
-function crystal_self_get_id() {
-    return global.__player_id;
+function crystal_get_player_id() {
+    return external_call(global.__crystal_dll[$ "get_player_id"]);
 }
 
-function crystal_self_get_name() {
-    return global.__player_name;
+function crystal_get_player_name() {
+    return external_call(global.__crystal_dll[$ "get_player_name"]);
 }
 
-function crystal_self_set(name, value) {
-    value = _get_value_valid(value);
-    if struct_exists(global.__variables, name) {
-        if global.__variables[$ name] == value
-            return;
-    }
-    global.__variables[$ name] = value;
-    var u = _create_updatevari();
-    u.name = name;
-    u.value = value;
-    array_push(global.__update_vari, u);
+function crystal_set_variable(name, variable) {
+    return external_call(global.__crystal_dll[$ "set_variable"], name, __encode_variable(variable));
 }
 
-function crystal_self_remove(name) {
-    if !struct_exists(global.__variables, name)
-        return;
-    struct_remove(global.__variables, name);
-    var u = _create_updatevari();
-    u.removed = true;
-    u.name = name;
-    array_push(global.__update_vari, u);
+function crystal_remove_variable(name) {
+    return external_call(global.__crystal_dll[$ "remove_variable"], name);
 }
 
-function crystal_other_iter(script) {
-    var player_keys = struct_get_names(global.__players);
-    for (var i = 0; i < array_length(player_keys); i++) {
-        if struct_exists(global.__players, player_keys[i])
-            script(real(player_keys[i]), global.__players[$ player_keys[i]].name);
-    }
+function crystal_iter_other_players() {
+    var s = string_split(external_call(global.__crystal_dll[$ "iter_other_players"]), ";");
+    var r = [];
+    for (var i = 0; i < array_length(s); i++)
+        array_push(r, __decode_player(s[i]));
+    return r;
 }
 
-function crystal_other_count() {
-    return struct_names_count(global.__players);
+function crystal_other_players_count() {
+    return external_call(global.__crystal_dll[$ "other_players_count"]);
 }
 
-function crystal_other_get_room(pid) {
-    if struct_exists(global.__players, pid)
-        return global.__players[$ pid].room;
-    return "";
+function crystal_get_other_player(pid) {
+    return __decode_player(external_call(global.__crystal_dll[$ "get_other_player"], pid));
 }
 
-function crystal_other_get_name(pid) {
-    if struct_exists(global.__players, pid)
-        return global.__players[$ pid].name;
-    return "";
+function crystal_get_other_player_name(name) {
+    return __decode_player(external_call(global.__crystal_dll[$ "get_other_player_name"], name));
 }
 
-function crystal_other_get_pid(name) {
-	var players = struct_get_names(global.__players);
-	for (var i = 0; i < array_length(players); i++) {
-		var pid = players[i];
-		var player = global.__players[$ pid];
-		if string_lower(player.name) == string_lower(name) {
-			return pid;
-		}
-	}
-	return -1;
+function crystal_request_other_player_variable(pid, name, request) {
+    return external_call(global.__crystal_dll[$ "request_other_player_variable"], pid, name, request);
 }
 
-function crystal_other_get(pid, name, default_value = undefined) {
-    if struct_exists(global.__players, pid) {
-        var vari = global.__players[$ pid].variables;
-        if struct_exists(vari, name)
-            return vari[$ name];
-    }
-    return default_value;
-}
-
-function crystal_other_has(pid, name) {
-    if struct_exists(global.__players, pid)
-        return struct_exists(global.__players[$ pid].variables, name);
-    return false;
-}
-
-function crystal_other_request(pid, name, callback = undefined) {
-    callback ??= function() {};
-    if struct_exists(global.__players, pid) || pid < 0 {
-        var index = -1;
-        for (var i = 0; i < array_length(global.__callback_other_vari); i++) {
-            if global.__callback_other_vari[i] == undefined {
-                index = i;
-                break;
-            }
-        }
-        if index == -1 {
-            index = array_length(global.__callback_other_vari);
-            array_push(global.__callback_other_vari, undefined);
-        }
-        global.__callback_other_vari[index] = [name, callback];
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 3);
-        _buf_write_bool(b, pid >= 0);
-        if pid >= 0
-            _buf_write_leb_u64(b, pid);
-        _buf_write_string(b, name);
-        _buf_write(b, buffer_u16, index);
-        _buf_send(b);
-    }
-}
-
-function crystal_p2p(p2pcode_or_pid, message_id, data = []) {
-	_encrypt_start(__ENCRYPT_WRITE);
-    var b = buffer_create(0, buffer_grow, 1);
-    _buf_write(b, buffer_u8, 4);
-    switch p2pcode_or_pid {
-        case P2PCode.AllGame:
-            _buf_write(b, buffer_u8, 1);
-            break;
-        case P2PCode.CurrentSession:
-            _buf_write(b, buffer_u8, 2);
-            break;
-        case P2PCode.CurrentRoom:
-            _buf_write(b, buffer_u8, 3);
-            break;
-        default:
-            _buf_write(b, buffer_u8, 0);
-            _buf_write_leb_u64(b, p2pcode_or_pid);
-            break;
-    }
-    _buf_write(b, buffer_s16, message_id);
-    _buf_write_array(b, data);
-    _buf_send(b);
+function crystal_p2p(target, mid, payload) {
+    var s = array_length(payload) + ";";
+    for (var i = 0; i < array_length(payload); i++)
+        s += __encode_variable(payload[i]);
+    return external_call(global.__crystal_dll[$ "p2p"], target, mid, s);
 }
 
 function crystal_set_version(version) {
-    global.__version = version;
-    if global.__is_connected {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 5);
-        _buf_write(b, buffer_f64, version);
-        _buf_send(b);
-    }
+    return external_call(global.__crystal_dll[$ "set_version"], version);
+}
+
+function crystal_get_version() {
+    return external_call(global.__crystal_dll[$ "get_version"]);
 }
 
 function crystal_get_server_version() {
-    return global.__game_version;
-}
-
-function crystal_set_session(session) {
-    global.__session = session;
-    if global.__is_connected {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 6);
-        _buf_write_string(b, session);
-        _buf_send(b);
-    }
+    return external_call(global.__crystal_dll[$ "get_server_version"]);
 }
 
 function crystal_get_session() {
-    return global.__session;
+    return external_call(global.__crystal_dll[$ "get_session"]);
 }
 
-function crystal_playerini_current() {
-    return global.__player_open_save;
+function crystal_get_open_playerini() {
+    return external_call(global.__crystal_dll[$ "get_open_playerini"]);
 }
 
-function crystal_playerini_open(file = "") {
-    global.__player_open_save = file;
+function crystal_open_playerini(file) {
+    return external_call(global.__crystal_dll[$ "open_playerini"], file);
 }
 
-function crystal_playerini_close() {
-    crystal_playerini_open();
+function crystal_close_playerini() {
+    return external_call(global.__crystal_dll[$ "close_playerini"]);
 }
 
-function crystal_playerini_exists(section, key) {
-    return struct_exists(global.__player_save, _get_save_key(global.__player_open_save, section, key));
+function crystal_has_playerini(section, key) {
+    return external_call(global.__crystal_dll[$ "has_playerini"], section, key);
 }
 
-function crystal_playerini_read(section, key, default_value = undefined) {
-    if crystal_playerini_exists(section, key)
-        return global.__player_save[$ _get_save_key(global.__player_open_save, section, key)];
-    return default_value;
+function crystal_get_playerini(section, key) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "get_playerini"], section, key));
 }
 
-function crystal_playerini_write(section, key, value) {
-    value = _get_value_valid(value);
-    if crystal_playerini_exists(section, key) {
-        if crystal_playerini_read(section, key) == value
-            return;
-    }
-    global.__player_save[$ _get_save_key(global.__player_open_save, section, key)] = value;
-    var u = _create_updatevari();
-    u.name = _get_save_key(global.__player_open_save, section, key);
-    u.value = value;
-    array_push(global.__update_playerini, u);
+function crystal_set_playerini(section, key, value) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "set_playerini"], section, key, __encode_variable(value)));
 }
 
-function crystal_playerini_remove(section, key) {
-    if crystal_playerini_exists(section, key) {
-        struct_remove(global.__player_save, _get_save_key(global.__player_open_save, section, key));
-        var u = _create_updatevari();
-        u.removed = true;
-        u.name = _get_save_key(global.__player_open_save, section, key);
-        array_push(global.__update_playerini, u);
-    }
+function crystal_remove_playerini(section, key) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "remove_playerini"], section, key));
 }
 
-function crystal_gameini_current() {
-    return global.__game_open_save;
+function crystal_get_open_gameini() {
+    return external_call(global.__crystal_dll[$ "get_open_gameini"]);
 }
 
-function crystal_gameini_open(file = "") {
-    global.__game_open_save = file;
+function crystal_open_gameini(file) {
+    return external_call(global.__crystal_dll[$ "open_gameini"], file);
 }
 
-function crystal_gameini_close() {
-    crystal_gameini_open();
+function crystal_close_gameini() {
+    return external_call(global.__crystal_dll[$ "close_gameini"]);
 }
 
-function crystal_gameini_exists(section, key) {
-    return struct_exists(global.__game_save, _get_save_key(global.__game_open_save, section, key));
+function crystal_has_gameini(section, key) {
+    return external_call(global.__crystal_dll[$ "has_gameini"], section, key);
 }
 
-function crystal_gameini_read(section, key, default_value = undefined) {
-    if crystal_playerini_exists(section, key)
-        return global.__game_save[$ _get_save_key(global.__game_open_save, section, key)];
-    return default_value;
+function crystal_get_gameini(section, key) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "get_gameini"], section, key));
 }
 
-function crystal_gameini_write(section, key, value) {
-    value = _get_value_valid(value);
-    if crystal_gameini_exists(section, key) {
-        if crystal_gameini_read(section, key) == value
-            return;
-    }
-    global.__game_save[$ _get_save_key(global.__game_open_save, section, key)] = value;
-    var u = _create_updatevari();
-    u.name = _get_save_key(global.__game_open_save, section, key);
-    u.value = value;
-    array_push(global.__update_gameini, u);
+function crystal_set_gameini(section, key, value) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "set_gameini"], section, key, __encode_variable(value)));
 }
 
-function crystal_gameini_remove(section, key) {
-    if crystal_gameini_exists(section, key) {
-        struct_remove(global.__game_save, _get_save_key(global.__game_open_save, section, key));
-        var u = _create_updatevari();
-        u.removed = true;
-        u.name = _get_save_key(global.__game_open_save, section, key);
-        array_push(global.__update_gameini, u);
-    }
+function crystal_remove_gameini(section, key) {
+    return __decode_variable(external_call(global.__crystal_dll[$ "remove_gameini"], section, key));
 }
 
-function crystal_achievement_exists(aid) {
-    return struct_exists(global.__game_achievements, aid);
+function crystal_has_achievement(aid) {
+    return external_call(global.__crystal_dll[$ "has_achievement"], aid);
 }
 
-function crystal_achievement_get_name(aid) {
-    if crystal_achievement_exists(aid)
-        return global.__game_achievements[$ aid].name;
-    return "";
+function crystal_get_achievement(aid) {
+    return external_call(global.__crystal_dll[$ "get_achievement"], aid);
 }
 
-function crystal_achievement_get_description(aid) {
-    if crystal_achievement_exists(aid)
-        return global.__game_achievements[$ aid].description;
-    return "";
+function crystal_has_reached_achievement(aid) {
+    return external_call(global.__crystal_dll[$ "has_reached_achievement"], aid);
 }
 
-function crystal_achievement_is_reached(aid) {
-    if crystal_achievement_exists(aid)
-        return struct_exists(global.__game_achievements[$ aid].players, crystal_self_get_id());
-    return false;
+function crystal_get_reached_achievement(aid) {
+    return external_call(global.__crystal_dll[$ "get_reached_achievement"], aid);
 }
 
-function crystal_achievement_reach(aid) {
-    if crystal_achievement_exists(aid) && !crystal_achievement_is_reached(aid) {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 14);
-        _buf_write_leb_u64(b, aid);
-        _buf_send(b);
-        global.__game_achievements[$ aid].players[$ crystal_self_get_id()] = floor(_get_unix_time());
-    }
+function crystal_reach_achievement(aid) {
+    return external_call(global.__crystal_dll[$ "reach_achievement"], aid);
 }
 
-function crystal_achievement_get(aid) {
-    if crystal_achievement_is_reached(aid)
-        return global.__game_achievements[$ aid].players[$ crystal_self_get_id()];
-    return 0;
+function crystal_has_highscore(hid) {
+    return external_call(global.__crystal_dll[$ "has_highscore"], hid);
 }
 
-function crystal_highscore_exists(hid) {
-    return struct_exists(global.__game_highscores, hid);
+function crystal_get_highscore(hid) {
+    return external_call(global.__crystal_dll[$ "get_highscore"], hid);
 }
 
-function crystal_highscore_get_name(hid) {
-    if crystal_highscore_exists(hid)
-        return global.__game_highscores[$ hid].name;
-    return "";
+function crystal_has_score_highscore(hid) {
+    return external_call(global.__crystal_dll[$ "has_score_highscore"], hid);
 }
 
-function crystal_highscore_get(hid) {
-    if crystal_highscore_exists(hid) {
-        var highscore = global.__game_highscores[$ hid];
-        if struct_exists(highscore.scores, crystal_self_get_id())
-            return highscore.scores[$ crystal_self_get_id()];
-    }
-    return 0;
+function crystal_get_score_highscore(hid) {
+    return external_call(global.__crystal_dll[$ "get_score_highscore"], hid);
 }
 
-function crystal_highscore_set(hid, score) {
-    if crystal_highscore_exists(hid) {
-        var highscore = global.__game_highscores[$ hid];
-        if struct_exists(highscore.scores, crystal_self_get_id()) {
-            if highscore.scores[$ crystal_self_get_id()] == score
-                return;
-        }
-        highscore.scores[$ crystal_self_get_id()] = score;
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 15);
-        _buf_write_leb_u64(b, hid);
-        _buf_write(b, buffer_f64, score);
-        _buf_send(b);
-    }
+function crystal_set_score_highscore(hid, score) {
+    return external_call(global.__crystal_dll[$ "set_score_highscore"], hid, score);
 }
 
-function crystal_sync_new(sync, kind) {
-    var index = -1;
-    for (var i = 0; i < array_length(global.__syncs); i++) {
-        if global.__syncs[i] == undefined {
-            index = i;
-            break;
-        }
-    }
-    if index == -1 {
-        index = array_length(global.__syncs);
-        array_push(global.__syncs, undefined);
-    }
-    var ns = _create_sync();
-    ns.kind = kind;
-    ns.type = sync;
-    global.__syncs[index] = ns;
-    
-    var nsq = _create_newsyncqueue();
-    nsq.slot = index;
-    nsq.kind = kind;
-    nsq.type = sync;
-    array_push(global.__new_sync_queue, nsq);
-    
-    return index;
+function crystal_create_sync(sync_type, kind) {
+    return external_call(global.__crystal_dll[$ "create_sync"], sync_type, kind);
 }
 
-function crystal_sync_set(slot, name, value) {
-    value = _get_value_valid(value);
-    if slot >= array_length(global.__syncs) || slot < 0
-        return;
-    if global.__syncs[slot] != undefined {
-        var sync = global.__syncs[slot];
-        if struct_exists(sync.variables, name) {
-            if sync.variables[$ name] == value
-                return;
-        }
-        sync.variables[$ name] = value;
-        if !array_contains(sync.to_sync, name)
-            array_push(sync.to_sync, name);
-    }
+function crystal_destroy_sync(sync) {
+    return external_call(global.__crystal_dll[$ "destroy_sync"], sync);
 }
 
-function crystal_sync_remove(slot, name) {
-    if slot >= array_length(global.__syncs) || slot < 0
-        return;
-    if global.__syncs[slot] != undefined {
-        var sync = global.__syncs[slot];
-        if !struct_exists(sync.variables, name)
-            return;
-        struct_remove(sync.variables, name);
-        if !array_contains(sync.to_sync, name)
-            array_push(sync.to_sync, name);
-    }
+function crystal_set_variable_sync(sync, name, value) {
+    return external_call(global.__crystal_dll[$ "set_variable_sync"], sync, name, __encode_variable(value));
 }
 
-function crystal_sync_get(pid, sync_slot, name, default_value = undefined) {
-    if struct_exists(global.__players, pid) {
-        var syncs = global.__players[$ pid].syncs;
-        if sync_slot < array_length(syncs) && sync_slot >= 0 {
-            if syncs[sync_slot] != undefined {
-                var vari = syncs[sync_slot].variables;
-                if struct_exists(vari, name)
-                    return vari[$ name];
-            }
-        }
-    }
-    return default_value;
+function crystal_remove_variable_sync(sync, name) {
+    return external_call(global.__crystal_dll[$ "remove_variable_sync"], sync, name);
 }
 
-function crystal_sync_has(pid, sync_slot, name) {
-    if struct_exists(global.__players, pid) {
-        var syncs = global.__players[$ pid].syncs;
-        if sync_slot < array_length(syncs) && sync_slot >= 0 {
-            if syncs[sync_slot] != undefined {
-                return struct_exists(syncs[sync_slot].variables, name);
-            }
-        }
-    }
-    return false;
+function crystal_get_variable_other_sync(pid, sync, name) {
+    return external_call(global.__crystal_dll[$ "get_variable_other_sync"], pid, sync, name);
 }
 
-function crystal_sync_destroy(slot) {
-    if slot < array_length(global.__syncs) && slot >= 0 && global.__syncs[slot] != undefined {
-        global.__syncs[slot] = undefined;
-        array_push(global.__syncs_remove, slot);
-    }
+function crystal_iter_other_syncs() {
+    return external_call(global.__crystal_dll[$ "iter_other_syncs"]);
 }
 
-function crystal_sync_iter(script) {
-    var r = _get_room();
-    var player_keys = struct_get_names(global.__players);
-    for (var i = 0; i < array_length(player_keys); i++) {
-        var player = global.__players[$ player_keys[i]];
-        for (var ii = 0; ii < array_length(player.syncs); ii++) {
-            if player.syncs[ii] != undefined {
-                var sync = player.syncs[ii];
-                if player.room != r && sync.event != SyncEvent.End
-                    continue;
-                var s = _create_synciter();
-                s.event = sync.type != CreateSync.Once ? sync.event : SyncEvent.Once;
-                s.kind = sync.kind;
-                s.variables = sync.variables;
-                s.player_id = real(player_keys[i]);
-                s.player_name = player.name;
-                s.slot = ii;
-                script(s);
-                if sync.event == SyncEvent.New
-                    sync.event = SyncEvent.Step;
-            }
-        }
-    }
+function crystal_is_player_admin(pid) {
+    return external_call(global.__crystal_dll[$ "is_player_admin"], pid);
 }
 
-function crystal_sync_request(pid, slot, variable_name, callback = undefined) {
-    callback ??= function() {};
-    if struct_exists(global.__players, pid) {
-        var player = global.__players[$ pid];
-        if slot < array_length(player.syncs) && slot >= 0 && player.syncs[slot] != undefined {
-            var index = -1;
-            for (var i = 0; i < array_length(global.__callback_other_vari); i++) {
-                if global.__callback_other_vari[i] == undefined {
-                    index = i;
-                    break;
-                }
-            }
-            if index == -1 {
-                index = array_length(global.__callback_other_vari);
-                array_push(global.__callback_other_vari, undefined);
-            }
-            global.__callback_other_vari[index] = [variable_name, callback, slot];
-			_encrypt_start(__ENCRYPT_WRITE);
-            var b = buffer_create(0, buffer_grow, 1);
-			_buf_write(b, buffer_u8, 17);
-            _buf_write_leb_u64(b, pid);
-            _buf_write_string(b, variable_name);
-            _buf_write(b, buffer_u16, index);
-            _buf_write(b, buffer_u16, slot);
-            _buf_send(b);
-        }
-    }
+function crystal_get_player_admin(pid) {
+    return __decode_administrator(external_call(global.__crystal_dll[$ "get_player_admin"], pid));
 }
 
-function crystal_self_is_admin() {
-    return struct_exists(global.__game_adminstrators, crystal_self_get_id());
+function crystal_player_kick(pid, reason) {
+    return external_call(global.__crystal_dll[$ "player_kick"], pid, reason);
 }
 
-function crystal_self_get_admin() {
-    if crystal_self_is_admin()
-        return global.__game_adminstrators[$ crystal_self_get_id()];
-    return undefined;
+function crystal_player_ban(pid, reason, unban_time) {
+    return external_call(global.__crystal_dll[$ "player_ban"], pid, reason, unban_time);
 }
 
-function crystal_other_is_admin(pid) {
-    return struct_exists(global.__game_adminstrators, pid);
+function crystal_player_unban(pid) {
+    return external_call(global.__crystal_dll[$ "player_unban"], pid);
 }
-
-function crystal_other_get_admin(pid) {
-    if crystal_other_is_admin(pid)
-        return global.__game_adminstrators[$ pid];
-    return undefined;
-}
-
-function crystal_admin_kick(pid, reason = "") {
-    if pid == crystal_self_get_id() || crystal_self_get_admin().can_kick {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 16);
-        _buf_write(b, buffer_u8, 2);
-        _buf_write_leb_u64(b, pid);
-        _buf_write_string(b, reason);
-        _buf_send(b);
-        return true;
-    }
-    return false;
-}
-
-function crystal_admin_ban(pid, unix_unban_time, reason = "") {
-    if pid == crystal_self_get_id() || crystal_self_get_admin().can_ban {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 16);
-        _buf_write(b, buffer_u8, 0);
-        _buf_write_leb_u64(b, pid);
-        _buf_write_string(b, reason);
-        _buf_write_i64(b, unix_unban_time);
-        _buf_send(b);
-        return true;
-    }
-    return false;
-}
-
-function crystal_admin_unban(pid) {
-    if crystal_self_get_admin().can_unban {
-		_encrypt_start(__ENCRYPT_WRITE);
-        var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 16);
-        _buf_write(b, buffer_u8, 1);
-        _buf_write_leb_u64(b, pid);
-        _buf_send(b);
-        return true;
-    }
-    return false;
-}
-
-/*function crystal_use_compression_zlib(use) {
-    global.__compression = use ? CompressionType.Zlib : CompressionType.None;
-}*/
 
 function crystal_logout() {
-	if crystal_info_is_loggedin() {
-		_encrypt_start(__ENCRYPT_WRITE);
-		var b = buffer_create(0, buffer_grow, 1);
-        _buf_write(b, buffer_u8, 18);
-        _buf_send(b);
-		_crystal_partial_clear_disconnected();
-		return true;
-	}
-	return false;
+    return external_call(global.__crystal_dll[$ "logout"]);
+}
+
+function crystal_request_other_sync_variable(pid, slot, name, request) {
+    return external_call(global.__crystal_dll[$ "request_other_sync_variable"], pid, slot, name, request);
+}
+
+function crystal_fetch_bdb(name, request) {
+    return external_call(global.__crystal_dll[$ "fetch_bdb"], name, request);
+}
+
+function crystal_set_bdb(name, data) {
+    return external_call(global.__crystal_dll[$ "set_bdb"], name, buffer_base64_encode(data, 0, buffer_tell(data)));
+}
+
+function crystal_get_incoming_friends() {
+    var s = string_split(external_call(global.__crystal_dll[$ "get_incoming_friends"]), ":");
+    var r = [];
+    var sz = real(s[0]);
+    for (var i = 0; i < sz; i++)
+        array_push(r, real(s[i + 1]));
+    return r;
+}
+
+function crystal_get_outgoing_friends() {
+    var s = string_split(external_call(global.__crystal_dll[$ "get_outgoing_friends"]), ":");
+    var r = [];
+    var sz = real(s[0]);
+    for (var i = 0; i < sz; i++)
+        array_push(r, real(s[i + 1]));
+    return r;
+}
+
+function crystal_get_friends() {
+    var s = string_split(external_call(global.__crystal_dll[$ "get_friends"]), ":");
+    var r = [];
+    var sz = real(s[0]);
+    for (var i = 0; i < sz; i++)
+        array_push(r, real(s[i + 1]));
+    return r;
+}
+
+function crystal_send_outgoing_friend(pid) {
+    return external_call(global.__crystal_dll[$ "send_outgoing_friend"], pid);
+}
+
+function crystal_remove_outgoing_friend(pid) {
+    return external_call(global.__crystal_dll[$ "remove_outgoing_friend"], pid);
+}
+
+function crystal_deny_incoming_friend(pid) {
+    return external_call(global.__crystal_dll[$ "deny_incoming_friend"], pid);
+}
+
+function crystal_accept_incoming_friend(pid) {
+    return external_call(global.__crystal_dll[$ "accept_incoming_friend"], pid);
+}
+
+function crystal_remove_friend(pid) {
+    return external_call(global.__crystal_dll[$ "remove_friend"], pid);
+}
+
+/*
+function crystal_() {
+    return external_call(global.__crystal_dll[$ ""]);
+}
+*/
+
+function __decode_administrator(s) {
+    s = string_split(s, ":");
+    var a = new Administrator();
+    a.can_ban = bool(real(s[0]));
+    a.can_unban = bool(real(s[1]));
+    a.can_kick = bool(real(s[2]));
+    return a;
+
+}
+
+function __decode_player(s) {
+    s = string_split(s, ":");
+    var p = new Player();
+    p.id = real(s[0]);
+    p.name = base64_decode(s[1]);
+    p.room = base64_decode(s[2]);
+    var ssize = real(s[3]);
+    var vsize = real(s[4]);
+    var o = 5;
+    for (var i = 0; i < ssize; i++) {
+        var ss = string_split(base64_decode(s[o]), ":");
+        var sy = new Sync();
+        sy.kind = real(ss[1]);
+        sy.sync_type = real(ss[2]);
+        sy.event = real(ss[3]);
+        sy.is_ending = bool(real(ss[4]));
+        var id = real(ss[0]);
+        while array_length(p.syncs) <= id
+            array_push(p.syncs, undefined);
+        p.syncs[id] = sy;
+        o++;
+    }
+    for (var i = 0; i < ssize; i++) {
+        var ss = string_split(base64_decode(s[o]), ":");
+        var sa = __decode_sync(string_split(base64_decode(s[o]), ":"));
+        p.syncs[sa[0]] = sa[1];
+        o++;
+    }
+    for (var i = 0; i < vsize; i++) {
+        p.variables[base64_decode(s[o])] = __encode_variable(base64_decode(s[o + 1]));
+        o += 2;
+    }
+    return p;
+}
+
+function __decode_sync(s) {
+    var s = string_split(s, ":");
+    if s[0] == "!"
+        return undefined;
+    var sy = new Sync();
+    sy.kind = real(s[1]);
+    sy.sync_type = real(s[2]);
+    sy.event = real(s[3]);
+    sy.is_ending = bool(real(s[4]));
+    var svari = real(real(s[5]));
+    var o = 6;
+    for (var i = 0; i < svari; i++) {
+        sy.variables[base64_decode(s[o])] = __encode_variable(base64_decode(s[o + 1]));
+        o += 2;
+    }
+    return [real(s[0]), sy];
+}
+
+function __encode_variable(vari) {
+    switch typeof(vari) {
+        case "undefined":
+        case "null":
+            return "!";
+        case "int32":
+        case "int64":
+            return "0:" + string(vari);
+        case "number":
+            return "1:" + string(vari);
+        case "bool":
+            return "2:" + string(vari ? 1 : 0);
+        case "string":
+            return "3:" + base64_encode(vari);
+        case "ref":
+            if buffer_exists(vari)
+                return buffer_base64_encode(vari, 0, buffer_tell(vari));
+            show_error("Invalid variable type: " + typeof(vari) + " (" + string(vari) + ")", true);
+        case "array":
+            var s = "5:" + string(array_length(vari));
+            for (var i = 0; i < array_length(vari); i++)
+                s += ":" + base64_encode(__encode_variable(array_get(vari, i)));
+            return s;
+        case "struct":
+            var s = "6:" + string(variable_struct_names_count(vari));
+            var v = variable_struct_get_names(vari);
+            for (var i = 0; i < array_length(v); i++)
+                s += ":" + base64_encode(__encode_variable(variable_struct_get(vari, v[i])));
+            return s;
+        default:
+            show_error("Invalid variable type: " + typeof(vari), true);
+    }
+}
+
+function __decode_variable(s) {
+    s = string_split(s, ":");
+    switch s[0] {
+        case "!":
+            return undefined;
+        case "0":
+            return int64(s[1]);
+        case "1":
+            return real(s[1]);
+        case "2":
+            return bool(real(s[1]));
+        case "3":
+            return base64_decode(s[1]);
+        case "4":
+            return buffer_base64_decode(s[1]);
+        case "5":
+            var r = [];
+            var sz = real(s[1]);
+            for (var i = 0; i < sz; i++)
+                array_push(r, __decode_variable(base64_decode(s[i + 2])));
+            return r;
+        case "6":
+            var r = [];
+            var sz = real(s[1]);
+            for (var i = 0; i < sz; i += 2)
+                struct_set(r, base64_decode(s[i + 2]), __decode_variable(base64_decode(s[i + 3])));
+            return r;
+    }
 }

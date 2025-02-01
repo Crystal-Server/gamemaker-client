@@ -1,1 +1,1 @@
-crystal_step();
+crystal_update();
