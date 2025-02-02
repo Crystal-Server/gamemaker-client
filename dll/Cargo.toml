@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 gm_utils = { path = "./crates/gm_utils" }
 base64 = "0.22.1"
 chrono = "0.4.39"
-crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "a73cd921187ee159f17077040fca38dd45e41196", features = [
+crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "404fa57bc6dc7942ef727f7ea84dd7e1b5c5050e", features = [
     #"__dev",
 ] }
 futures-util = "0.3.31"
