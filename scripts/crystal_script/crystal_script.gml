@@ -210,10 +210,6 @@ function crystal_set_callback_login_token(callback) {
     global.__crystal_callback_login_token = callback;
 }
 
-/*function crystal_set_callback_data_update(callback) {
-    global.__crystal_callback_data_update = callback;
-}*/
-
 function crystal_set_callback_bdb(callback) {
     global.__crystal_callback_bdb = callback;
 }
@@ -245,6 +241,10 @@ function crystal_update() {
         var s = string_split(notf, ";");
 		//show_debug_message(notf + "\t\t\t" + string(s));
         switch s[0] {
+			case "login_token":
+				if global.__crystal_callback_login_token != undefined
+					global.__crystal_callback_login_token(base64_decode(s[1]));
+				break;
             case "admin_action":
                 switch s[1] {
                     case "1":
@@ -316,14 +316,12 @@ function crystal_update() {
             case "server_message": // server_message->string_base64
                 break;
             case "update_variable":
-                if global.__crystal_callback_update_variable != undefined {
+                if global.__crystal_callback_update_variable != undefined
                     global.__crystal_callback_update_variable(real(s[1]), base64_decode(s[2]), __decode_variable(s[3]), s[3] == "!!");
-                }
                 break;
             case "update_sync_variable":
-                if global.__crystal_callback_update_sync_variable != undefined {
+                if global.__crystal_callback_update_sync_variable != undefined
                     global.__crystal_callback_update_sync_variable(real(s[1]), real(s[2]), base64_decode(s[3]), __decode_variable(s[4]), s[4] == "!!");
-                }
                 break;
             case "update_sync_removal": // pid->u64,slot->u64
                 break;
@@ -408,8 +406,8 @@ function crystal_iter_other_players() {
     return r;
 }
 
-function crystal_other_players_count() {
-    return external_call(global.__crystal_dll[$ "other_players_count"]);
+function crystal_other_player_count() {
+    return external_call(global.__crystal_dll[$ "other_player_count"]);
 }
 
 function crystal_get_other_player(pid) {

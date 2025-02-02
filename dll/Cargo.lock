@@ -321,7 +321,7 @@ dependencies = [
 [[package]]
 name = "crystal-server"
 version = "1.0.0"
-source = "git+https://github.com/Crystal-Server/rust-client.git?rev=ceefc0c6d3c319130f9649abc31698b18576a48b#ceefc0c6d3c319130f9649abc31698b18576a48b"
+source = "git+https://github.com/Crystal-Server/rust-client.git?rev=a157b73c8e5cfc793e1b99d8af48d4a5ec83944e#a157b73c8e5cfc793e1b99d8af48d4a5ec83944e"
 dependencies = [
  "age",
  "async-stream",
