@@ -1,7 +1,6 @@
 use std::{
-    cell::LazyCell,
     collections::{HashMap, VecDeque},
-    ffi::CString,
+    sync::LazyLock,
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
@@ -18,30 +17,31 @@ use gm_utils::gm_func;
 use parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
-static mut CRYSTAL: LazyCell<Mutex<CrystalServer>> =
-    LazyCell::new(|| Mutex::new(CrystalServer::init("")));
-static mut RUNTIME: LazyCell<Runtime> = LazyCell::new(|| Runtime::new().unwrap());
-static mut NOTIFICATIONS: LazyCell<Mutex<VecDeque<String>>> =
-    LazyCell::new(|| Mutex::new(VecDeque::default()));
-static mut HAS_INIT: LazyCell<Mutex<bool>> = LazyCell::new(|| Mutex::new(false));
-static mut ROOM: LazyCell<Mutex<String>> = LazyCell::new(|| Mutex::new(String::new()));
+static CRYSTAL: LazyLock<Mutex<CrystalServer>> =
+    LazyLock::new(|| Mutex::new(CrystalServer::init("")));
+static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
+static NOTIFICATIONS: LazyLock<Mutex<VecDeque<String>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::default()));
+static HAS_INIT: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
+static ROOM: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn _set_room(room: *mut i8) {
-    *ROOM.lock() = CString::from_raw(room).to_string_lossy().to_string();
+pub fn __crystal_set_room(room: &str) {
+    #[cfg(feature = "debug")]
+    println!("_set_room({room:?})");
+    *ROOM.lock() = room.to_string();
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn init(game_id: *mut i8) {
+pub fn __crystal_init(game_id: &str) {
+    #[cfg(feature = "debug")]
+    println!("init({game_id:?})");
     let mut hinit = HAS_INIT.lock();
     if !*hinit {
         *hinit = true;
+        tracing_subscriber::fmt().init();
         let mut lock = CRYSTAL.lock();
-        println!("1");
-        *lock = CrystalServer::init(CString::from_raw(game_id).to_str().unwrap());
-        println!("2");
+        *lock = CrystalServer::init(game_id);
         RUNTIME.block_on(async {
             lock.callback_set_room(Box::new(|| ROOM.lock().clone()))
                 .await;
@@ -200,6 +200,9 @@ pub unsafe fn init(game_id: *mut i8) {
                     DataUpdate::ServerNotification(notif) => {
                         format!("server_notification;{}", BASE64_STANDARD.encode(notif))
                     }
+                    DataUpdate::LoginToken(token) => {
+                        format!("login_token;{}", BASE64_STANDARD.encode(token))
+                    }
                 });
             }))
             .await;
@@ -208,66 +211,74 @@ pub unsafe fn init(game_id: *mut i8) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn connect() {
+pub fn __crystal_connect() {
+    #[cfg(feature = "debug")]
+    println!("connect()");
     let mut lock = CRYSTAL.lock();
-    RUNTIME.block_on(async { lock.connect().await })
+    RUNTIME.block_on(async { lock.connect().await });
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn update() -> bool {
+pub fn __crystal_update() -> bool {
+    #[cfg(feature = "debug")]
+    println!("update()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.update().await.is_ok() })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_notification() -> String {
+pub fn __crystal_get_notification() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_notification()");
     NOTIFICATIONS.lock().pop_front().unwrap_or_default()
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn is_connected() -> bool {
+pub fn __crystal_is_connected() -> bool {
+    #[cfg(feature = "debug")]
+    println!("is_connected()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_connected().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn is_connecting() -> bool {
+pub fn __crystal_is_connecting() -> bool {
+    #[cfg(feature = "debug")]
+    println!("is_connecting()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_connecting().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn is_loggedin() -> bool {
+pub fn __crystal_is_loggedin() -> bool {
+    #[cfg(feature = "debug")]
+    println!("is_loggedin()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_loggedin().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_ping() -> f64 {
+pub fn __crystal_get_ping() -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_ping()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_ping().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_game_token(token: *mut i8) {
+pub fn __crystal_set_game_token(token: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_game_token({token:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.set_game_token(CString::from_raw(token).to_str().unwrap())
-            .await;
+        lock.set_game_token(token).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn disconnect() {
+pub fn __crystal_disconnect() {
+    #[cfg(feature = "debug")]
+    println!("disconnect()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.disconnect().await;
@@ -275,52 +286,39 @@ pub unsafe fn disconnect() {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn login(name: *mut i8, passw: *mut i8) {
+pub fn __crystal_login(name: &str, passw: &str) {
+    #[cfg(feature = "debug")]
+    println!("login({name:?}, {passw:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let _ = lock
-            .login(
-                CString::from_raw(name).to_str().unwrap(),
-                CString::from_raw(passw).to_str().unwrap(),
-            )
-            .await;
+        let _ = lock.login(name, passw).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn login_with_token(name: *mut i8, token: *mut i8) {
+pub fn __crystal_login_with_token(name: &str, token: &str) {
+    #[cfg(feature = "debug")]
+    println!("login_with_token({name:?}, {token:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let _ = lock
-            .login_with_token(
-                CString::from_raw(name).to_str().unwrap(),
-                CString::from_raw(token).to_str().unwrap(),
-            )
-            .await;
+        let _ = lock.login_with_token(name, token).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn register(name: *mut i8, email: *mut i8, passw: *mut i8, repeat_passw: *mut i8) {
+pub fn __crystal_register(name: &str, email: &str, passw: &str, repeat_passw: &str) {
+    #[cfg(feature = "debug")]
+    println!("register({name:?}, {email:?}, {passw:?}, {repeat_passw:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let _ = lock
-            .register(
-                CString::from_raw(name).to_str().unwrap(),
-                CString::from_raw(email).to_str().unwrap(),
-                CString::from_raw(passw).to_str().unwrap(),
-                CString::from_raw(repeat_passw).to_str().unwrap(),
-            )
-            .await;
+        let _ = lock.register(name, email, passw, repeat_passw).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_player_id() -> f64 {
+pub fn __crystal_get_player_id() -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_player_id()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_player_id()
@@ -331,60 +329,64 @@ pub unsafe fn get_player_id() -> f64 {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_player_name() -> String {
+pub fn __crystal_get_player_name() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_player_name()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_player_name().await.unwrap_or(String::new()) })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_variable(name: *mut i8, variable: *mut i8) {
+pub fn __crystal_set_variable(name: &str, variable: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_variable({name:?}, {variable:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.set_variable(
-            CString::from_raw(name).to_str().unwrap(),
-            decode_vari(CString::from_raw(variable).to_str().unwrap()),
-        )
-        .await;
+        lock.set_variable(name, decode_vari(variable)).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_variable(name: *mut i8) {
+pub fn __crystal_remove_variable(name: &str) {
+    #[cfg(feature = "debug")]
+    println!("remove_variable({name:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.remove_variable(CString::from_raw(name).to_str().unwrap())
-            .await;
+        lock.remove_variable(name).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn iter_other_players() -> String {
+pub fn __crystal_iter_other_players() -> String {
+    #[cfg(feature = "debug")]
+    println!("iter_other_players()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let iter = lock.iter_other_players().await;
         pin_mut!(iter);
         let mut res = String::new();
         while let Some((pid, player)) = iter.next().await {
-            res.push_str(&format!("{};", encode_player(pid, &player)));
+            if !res.is_empty() {
+                res.push(';');
+            }
+            res.push_str(&encode_player(pid, &player));
         }
         res
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn other_players_count() -> f64 {
+pub fn __crystal_other_player_count() -> f64 {
+    #[cfg(feature = "debug")]
+    println!("other_player_count()");
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async { lock.other_players_count().await as f64 })
+    RUNTIME.block_on(async { lock.other_player_count().await as f64 })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_other_player(pid: f64) -> String {
+pub fn __crystal_get_other_player(pid: f64) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_other_player({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         if let Some(player) = lock.get_other_player(pid as u64).await {
@@ -396,14 +398,12 @@ pub unsafe fn get_other_player(pid: f64) -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_other_player_name(name: *mut i8) -> String {
+pub fn __crystal_get_other_player_name(name: &str) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_other_player_name({name:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        if let Some((pid, player)) = lock
-            .get_other_player_name(CString::from_raw(name).to_str().unwrap())
-            .await
-        {
+        if let Some((pid, player)) = lock.get_other_player_name(name).await {
             encode_player(pid, &player)
         } else {
             String::from("!")
@@ -412,14 +412,15 @@ pub unsafe fn get_other_player_name(name: *mut i8) -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn request_other_player_variable(pid: f64, name: *mut i8, request: f64) {
+pub fn __crystal_request_other_player_variable(pid: f64, name: &str, request: f64) {
+    #[cfg(feature = "debug")]
+    println!("request_other_player_variable({pid:?}, {name:?}, {request:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
             .request_other_player_variable(
                 pid as u64,
-                CString::from_raw(name).to_str().unwrap(),
+                name,
                 Some(Box::new(move |pid, name, vari| {
                     NOTIFICATIONS.lock().push_back(format!(
                         "player_variable_request;{request};{pid};{name};{}",
@@ -436,8 +437,9 @@ pub unsafe fn request_other_player_variable(pid: f64, name: *mut i8, request: f6
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn p2p(target: f64, mid: f64, payload: *mut i8) {
+pub fn __crystal_p2p(target: f64, mid: f64, payload: &str) {
+    #[cfg(feature = "debug")]
+    println!("p2p({target:?}, {mid:?}, {payload:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
@@ -451,9 +453,8 @@ pub unsafe fn p2p(target: f64, mid: f64, payload: *mut i8) {
                 },
                 mid as i16,
                 {
-                    let cs = CString::from_raw(payload);
-                    let cst = cs.to_string_lossy();
-                    let mut s = cst.split(";");
+                    let ps = payload.to_string();
+                    let mut s = ps.split(";");
                     let mut data = Vec::new();
                     for _ in 0..s.next().unwrap().parse::<usize>().unwrap() {
                         data.push(decode_vari(s.next().unwrap()));
@@ -466,8 +467,9 @@ pub unsafe fn p2p(target: f64, mid: f64, payload: *mut i8) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_version(version: f64) {
+pub fn __crystal_set_version(version: f64) {
+    #[cfg(feature = "debug")]
+    println!("set_version({version:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.set_version(version).await;
@@ -475,46 +477,61 @@ pub unsafe fn set_version(version: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_version() -> f64 {
+pub fn __crystal_get_version() -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_version()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_version().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_server_version() -> f64 {
+pub fn __crystal_get_server_version() -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_server_version()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_server_version().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_session() -> String {
+pub fn __crystal_set_session(session: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_session({session:?})");
+    let lock = CRYSTAL.lock();
+    RUNTIME.block_on(async {
+        let _ = lock.set_session(session).await;
+    })
+}
+
+#[gm_func]
+pub fn __crystal_get_session() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_session()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_session().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_open_playerini() -> String {
+pub fn __crystal_get_open_playerini() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_open_playerini()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_open_playerini().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn open_playerini(file: *mut i8) {
+pub fn __crystal_open_playerini(file: &str) {
+    #[cfg(feature = "debug")]
+    println!("open_playerini({file:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.open_playerini(CString::from_raw(file).to_str().unwrap())
-            .await;
+        lock.open_playerini(file).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn close_playerini() {
+pub fn __crystal_close_playerini() {
+    #[cfg(feature = "debug")]
+    println!("close_playerini()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.close_playerini().await;
@@ -522,30 +539,20 @@ pub unsafe fn close_playerini() {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_playerini(section: *mut i8, key: *mut i8) -> bool {
+pub fn __crystal_has_playerini(section: &str, key: &str) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_playerini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        lock.has_playerini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-        )
-        .await
-    })
+    RUNTIME.block_on(async { lock.has_playerini(section, key).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_playerini(section: *mut i8, key: *mut i8) -> String {
+pub fn __crystal_get_playerini(section: &str, key: &str) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_playerini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        if let Some(vari) = lock
-            .get_playerini(
-                CString::from_raw(section).to_str().unwrap(),
-                CString::from_raw(key).to_str().unwrap(),
-            )
-            .await
-        {
+        if let Some(vari) = lock.get_playerini(section, key).await {
             encode_vari(&vari)
         } else {
             String::from("!")
@@ -554,52 +561,47 @@ pub unsafe fn get_playerini(section: *mut i8, key: *mut i8) -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_playerini(section: *mut i8, key: *mut i8, vari: *mut i8) {
+pub fn __crystal_set_playerini(section: &str, key: &str, vari: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_playerini({section:?}, {key:?}, {vari:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.set_playerini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-            decode_vari(CString::from_raw(vari).to_str().unwrap()),
-        )
-        .await;
+        lock.set_playerini(section, key, decode_vari(vari)).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_playerini(section: *mut i8, key: *mut i8) {
+pub fn __crystal_remove_playerini(section: &str, key: &str) {
+    #[cfg(feature = "debug")]
+    println!("remove_playerini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.remove_playerini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-        )
-        .await;
+        lock.remove_playerini(section, key).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_open_gameini() -> String {
+pub fn __crystal_get_open_gameini() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_open_gameini()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.get_open_gameini().await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn open_gameini(file: *mut i8) {
+pub fn __crystal_open_gameini(file: &str) {
+    #[cfg(feature = "debug")]
+    println!("open_gameini({file:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.open_gameini(CString::from_raw(file).to_str().unwrap())
-            .await;
+        lock.open_gameini(file).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn close_gameini() {
+pub fn __crystal_close_gameini() {
+    #[cfg(feature = "debug")]
+    println!("close_gameini()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.close_gameini().await;
@@ -607,30 +609,20 @@ pub unsafe fn close_gameini() {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_gameini(section: *mut i8, key: *mut i8) -> bool {
+pub fn __crystal_has_gameini(section: &str, key: &str) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_gameini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        lock.has_gameini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-        )
-        .await
-    })
+    RUNTIME.block_on(async { lock.has_gameini(section, key).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_gameini(section: *mut i8, key: *mut i8) -> String {
+pub fn __crystal_get_gameini(section: &str, key: &str) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_gameini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        if let Some(vari) = lock
-            .get_gameini(
-                CString::from_raw(section).to_str().unwrap(),
-                CString::from_raw(key).to_str().unwrap(),
-            )
-            .await
-        {
+        if let Some(vari) = lock.get_gameini(section, key).await {
             encode_vari(&vari)
         } else {
             String::from("!")
@@ -639,56 +631,53 @@ pub unsafe fn get_gameini(section: *mut i8, key: *mut i8) -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_gameini(section: *mut i8, key: *mut i8, vari: *mut i8) {
+pub fn __crystal_set_gameini(section: &str, key: &str, vari: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_gameini({section:?}, {key:?}, {vari:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.set_gameini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-            decode_vari(CString::from_raw(vari).to_str().unwrap()),
-        )
-        .await;
+        lock.set_gameini(section, key, decode_vari(vari)).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_gameini(section: *mut i8, key: *mut i8) {
+pub fn __crystal_remove_gameini(section: &str, key: &str) {
+    #[cfg(feature = "debug")]
+    println!("remove_gameini({section:?}, {key:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        lock.remove_gameini(
-            CString::from_raw(section).to_str().unwrap(),
-            CString::from_raw(key).to_str().unwrap(),
-        )
-        .await;
+        lock.remove_gameini(section, key).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_achievement(aid: f64) -> bool {
+pub fn __crystal_has_achievement(aid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_achievement({aid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_achievement(aid as u64).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_achievement(aid: f64) -> String {
+pub fn __crystal_get_achievement(aid: f64) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_achievement({aid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { encode_achievement(&lock.get_achievement(aid as u64).await) })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_reached_achievement(aid: f64) -> bool {
+pub fn __crystal_has_reached_achievement(aid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_reached_achievement({aid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_reached_achievement(aid as u64).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_reached_achievement(aid: f64) -> f64 {
+pub fn __crystal_get_reached_achievement(aid: f64) -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_reached_achievement({aid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_reached_achievement(aid as u64)
@@ -699,8 +688,9 @@ pub unsafe fn get_reached_achievement(aid: f64) -> f64 {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn reach_achievement(aid: f64) {
+pub fn __crystal_reach_achievement(aid: f64) {
+    #[cfg(feature = "debug")]
+    println!("reach_achievement({aid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.reach_achievement(aid as u64).await;
@@ -708,29 +698,33 @@ pub unsafe fn reach_achievement(aid: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_highscore(aid: f64) -> bool {
+pub fn __crystal_has_highscore(hid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_highscore({hid:?})");
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async { lock.has_highscore(aid as u64).await })
+    RUNTIME.block_on(async { lock.has_highscore(hid as u64).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_highscore(hid: f64) -> String {
+pub fn __crystal_get_highscore(hid: f64) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_highscore({hid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { encode_highscore(&lock.get_highscore(hid as u64).await) })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn has_score_highscore(hid: f64) -> bool {
+pub fn __crystal_has_score_highscore(hid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("has_score_highscore({hid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.has_score_highscore(hid as u64).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_score_highscore(hid: f64) -> f64 {
+pub fn __crystal_get_score_highscore(hid: f64) -> f64 {
+    #[cfg(feature = "debug")]
+    println!("get_score_highscore({hid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.get_score_highscore(hid as u64)
@@ -740,8 +734,9 @@ pub unsafe fn get_score_highscore(hid: f64) -> f64 {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_score_highscore(hid: f64, score: f64) {
+pub fn __crystal_set_score_highscore(hid: f64, score: f64) {
+    #[cfg(feature = "debug")]
+    println!("set_score_highscore({hid:?}, {score:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.set_score_highscore(hid as u64, score).await;
@@ -749,8 +744,9 @@ pub unsafe fn set_score_highscore(hid: f64, score: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn create_sync(sync_type: f64, kind: f64) -> f64 {
+pub fn __crystal_create_sync(sync_type: f64, kind: f64) -> f64 {
+    #[cfg(feature = "debug")]
+    println!("create_sync({sync_type:?}, {kind:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.create_sync(SyncType::try_from(sync_type as u8).unwrap(), kind as i16)
@@ -759,8 +755,9 @@ pub unsafe fn create_sync(sync_type: f64, kind: f64) -> f64 {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn destroy_sync(sync: f64) {
+pub fn __crystal_destroy_sync(sync: f64) {
+    #[cfg(feature = "debug")]
+    println!("destroy_sync({sync:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.destroy_sync(sync as usize).await;
@@ -768,42 +765,35 @@ pub unsafe fn destroy_sync(sync: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_variable_sync(sync: f64, name: *mut i8, value: *mut i8) {
+pub fn __crystal_set_variable_sync(sync: f64, name: &str, value: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_variable_sync({sync:?}, {name:?}, {value:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
-            .set_variable_sync(
-                sync as usize,
-                CString::from_raw(name).to_str().unwrap(),
-                decode_vari(CString::from_raw(value).to_str().unwrap()),
-            )
+            .set_variable_sync(sync as usize, name, decode_vari(value))
             .await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_variable_sync(sync: f64, name: *mut i8) {
+pub fn __crystal_remove_variable_sync(sync: f64, name: &str) {
+    #[cfg(feature = "debug")]
+    println!("remove_variable_sync({sync:?}, {name:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
-        let _ = lock
-            .remove_variable_sync(sync as usize, CString::from_raw(name).to_str().unwrap())
-            .await;
+        let _ = lock.remove_variable_sync(sync as usize, name).await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_variable_other_sync(pid: f64, sync: f64, name: *mut i8) -> String {
+pub fn __crystal_get_variable_other_sync(pid: f64, sync: f64, name: &str) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_variable_other_sync({pid:?}, {sync:?}, {name:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         if let Some(vari) = lock
-            .get_variable_other_sync(
-                pid as u64,
-                sync as usize,
-                CString::from_raw(name).to_str().unwrap(),
-            )
+            .get_variable_other_sync(pid as u64, sync as usize, name)
             .await
         {
             encode_vari(&vari)
@@ -814,31 +804,36 @@ pub unsafe fn get_variable_other_sync(pid: f64, sync: f64, name: *mut i8) -> Str
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn iter_other_syncs() -> String {
+pub fn __crystal_iter_other_syncs() -> String {
+    #[cfg(feature = "debug")]
+    println!("iter_other_syncs()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let iter = lock.iter_other_syncs().await;
         pin_mut!(iter);
         let mut res = String::new();
         while let Some(sync) = iter.next().await {
-            res.push_str(&format!("1:{};", encode_synciter(&sync)));
+            if !res.is_empty() {
+                res.push(';');
+            }
+            res.push_str(&encode_synciter(&sync));
         }
-        res.push('0');
         res
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn is_player_admin(pid: f64) -> bool {
+pub fn __crystal_is_player_admin(pid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("is_player_admin({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.is_player_admin(pid as u64).await })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_player_admin(pid: f64) -> String {
+pub fn __crystal_get_player_admin(pid: f64) -> String {
+    #[cfg(feature = "debug")]
+    println!("get_player_admin({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         if let Some(admin) = lock.get_player_admin(pid as u64).await {
@@ -850,24 +845,22 @@ pub unsafe fn get_player_admin(pid: f64) -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn player_kick(pid: f64, reason: *mut i8) -> bool {
+pub fn __crystal_player_kick(pid: f64, reason: &str) -> bool {
+    #[cfg(feature = "debug")]
+    println!("player_kick({pid:?}, {reason:?})");
     let lock = CRYSTAL.lock();
-    RUNTIME.block_on(async {
-        lock.player_kick(pid as u64, CString::from_raw(reason).to_str().unwrap())
-            .await
-            .unwrap()
-    })
+    RUNTIME.block_on(async { lock.player_kick(pid as u64, reason).await.unwrap() })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn player_ban(pid: f64, reason: *mut i8, unban_time: f64) -> bool {
+pub fn __crystal_player_ban(pid: f64, reason: &str, unban_time: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("player_ban({pid:?}, {reason:?}, {unban_time:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         lock.player_ban(
             pid as u64,
-            CString::from_raw(reason).to_str().unwrap(),
+            reason,
             DateTime::from_timestamp(unban_time as i64, 0).unwrap(),
         )
         .await
@@ -876,29 +869,32 @@ pub unsafe fn player_ban(pid: f64, reason: *mut i8, unban_time: f64) -> bool {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn player_unban(pid: f64) -> bool {
+pub fn __crystal_player_unban(pid: f64) -> bool {
+    #[cfg(feature = "debug")]
+    println!("player_unban({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.player_unban(pid as u64).await.unwrap() })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn logout() -> bool {
+pub fn __crystal_logout() -> bool {
+    #[cfg(feature = "debug")]
+    println!("logout()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async { lock.logout().await.unwrap() })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn request_other_sync_variable(pid: f64, slot: f64, name: *mut i8, request: f64) {
+pub fn __crystal_request_other_sync_variable(pid: f64, slot: f64, name: &str, request: f64) {
+    #[cfg(feature = "debug")]
+    println!("request_other_sync_variable({pid:?}, {slot:?}, {name:?}, {request:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
             .request_other_sync_variable(
                 pid as u64,
                 slot as usize,
-                CString::from_raw(name).to_str().unwrap(),
+                name,
                 Some(Box::new(move |pid, name, vari| {
                     NOTIFICATIONS.lock().push_back(format!(
                         "sync_variable_request;{request};{pid};{name};{}",
@@ -915,13 +911,14 @@ pub unsafe fn request_other_sync_variable(pid: f64, slot: f64, name: *mut i8, re
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn fetch_bdb(name: *mut i8, request: f64) {
+pub fn __crystal_fetch_bdb(name: &str, request: f64) {
+    #[cfg(feature = "debug")]
+    println!("fetch_bdb({name:?}, {request:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
             .fetch_bdb(
-                CString::from_raw(name).to_str().unwrap(),
+                name,
                 Some(Box::new(move |pid, name, vari| {
                     NOTIFICATIONS.lock().push_back(format!(
                         "bdb_request;{request};{pid};{name};{}",
@@ -938,24 +935,21 @@ pub unsafe fn fetch_bdb(name: *mut i8, request: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn set_bdb(name: *mut i8, data: *mut i8) {
+pub fn __crystal_set_bdb(name: &str, data: &str) {
+    #[cfg(feature = "debug")]
+    println!("set_bdb({name:?}, {data:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock
-            .set_bdb(
-                CString::from_raw(name).to_str().unwrap(),
-                BASE64_STANDARD
-                    .decode(CString::from_raw(data).to_str().unwrap())
-                    .unwrap(),
-            )
+            .set_bdb(name, BASE64_STANDARD.decode(data).unwrap())
             .await;
     })
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_incoming_friends() -> String {
+pub fn __crystal_get_incoming_friends() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_incoming_friends()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let fr = lock.get_incoming_friends().await;
@@ -968,8 +962,9 @@ pub unsafe fn get_incoming_friends() -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_outgoing_friends() -> String {
+pub fn __crystal_get_outgoing_friends() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_outgoing_friends()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let fr = lock.get_outgoing_friends().await;
@@ -982,8 +977,9 @@ pub unsafe fn get_outgoing_friends() -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn get_friends() -> String {
+pub fn __crystal_get_friends() -> String {
+    #[cfg(feature = "debug")]
+    println!("get_friends()");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let fr = lock.get_friends().await;
@@ -996,8 +992,9 @@ pub unsafe fn get_friends() -> String {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn send_outgoing_friend(pid: f64) {
+pub fn __crystal_send_outgoing_friend(pid: f64) {
+    #[cfg(feature = "debug")]
+    println!("send_outgoing_friend({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.send_outgoing_friend(pid as u64).await;
@@ -1005,8 +1002,9 @@ pub unsafe fn send_outgoing_friend(pid: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_outgoing_friend(pid: f64) {
+pub fn __crystal_remove_outgoing_friend(pid: f64) {
+    #[cfg(feature = "debug")]
+    println!("remove_outgoing_friend({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.remove_outgoing_friend(pid as u64).await;
@@ -1014,8 +1012,9 @@ pub unsafe fn remove_outgoing_friend(pid: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn deny_incoming_friend(pid: f64) {
+pub fn __crystal_deny_incoming_friend(pid: f64) {
+    #[cfg(feature = "debug")]
+    println!("deny_incoming_friend({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.deny_incoming_friend(pid as u64).await;
@@ -1023,8 +1022,9 @@ pub unsafe fn deny_incoming_friend(pid: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn accept_incoming_friend(pid: f64) {
+pub fn __crystal_accept_incoming_friend(pid: f64) {
+    #[cfg(feature = "debug")]
+    println!("accept_incoming_friend({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.accept_incoming_friend(pid as u64).await;
@@ -1032,8 +1032,9 @@ pub unsafe fn accept_incoming_friend(pid: f64) {
 }
 
 #[gm_func]
-#[allow(clippy::missing_safety_doc, static_mut_refs)]
-pub unsafe fn remove_friend(pid: f64) {
+pub fn __crystal_remove_friend(pid: f64) {
+    #[cfg(feature = "debug")]
+    println!("remove_friend({pid:?})");
     let lock = CRYSTAL.lock();
     RUNTIME.block_on(async {
         let _ = lock.remove_friend(pid as u64).await;
@@ -1134,7 +1135,7 @@ fn encode_synciter(siter: &SyncIter) -> String {
         s.push_str(&format!(
             ":{}:{}",
             BASE64_STANDARD.encode(name),
-            encode_vari(value)
+            BASE64_STANDARD.encode(encode_vari(value)),
         ));
     }
     s
