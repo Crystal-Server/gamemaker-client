@@ -210,6 +210,10 @@ function crystal_set_callback_login_token(callback) {
     global.__crystal_callback_login_token = callback;
 }
 
+/*function crystal_set_callback_data_update(callback) {
+    global.__crystal_callback_data_update = callback;
+}*/
+
 function crystal_set_callback_bdb(callback) {
     global.__crystal_callback_bdb = callback;
 }
@@ -398,7 +402,7 @@ function crystal_iter_other_players() {
 	//show_debug_message(ss);
     var s = string_split(ss, ";");
 	//show_debug_message(r + "\t\t\t" + string(s));
-    r = [];
+    var r = [];
 	if array_length(s) == 1 && string_length(s[0]) == 0
 		return r;
     for (var i = 0; i < array_length(s); i++)
