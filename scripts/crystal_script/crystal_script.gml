@@ -52,7 +52,7 @@ enum P2PCode {
     Server = -4,
 }
 
-function Player() constructor {
+function CrystalPlayer() constructor {
     id = -1;
     name = "";
     rm = "";
@@ -60,7 +60,7 @@ function Player() constructor {
     variables = {};
 }
 
-function Sync() constructor {
+function CrystalSync() constructor {
     //index = -1; // Is this really necessary?
     kind = -1;
     sync_type = -1;
@@ -69,13 +69,13 @@ function Sync() constructor {
     variables = {};
 }
 
-function Administrator() constructor {
+function CrystalAdministrator() constructor {
     can_ban = false;
     can_unban = false;
     can_kick = false;
 }
 
-function SyncIter() constructor {
+function CrystalSyncIter() constructor {
 	id = -1;
 	name = "";
 	sync_slot = -1;
@@ -673,7 +673,7 @@ function crystal_() {
 
 function __decode_administrator(s) {
     s = string_split(s, ":");
-    var a = new Administrator();
+    var a = new CrystalAdministrator();
     a.can_ban = bool(real(s[0]));
     a.can_unban = bool(real(s[1]));
     a.can_kick = bool(real(s[2]));
@@ -685,7 +685,7 @@ function __decode_player(s) {
 	//show_debug_message(s);
     s = string_split(s, ":");
 	//show_debug_message(s);
-    var p = new Player();
+    var p = new CrystalPlayer();
 	if s[0] == "!"
 		return undefined;
     p.id = real(s[0]);
@@ -712,7 +712,7 @@ function __decode_sync(s) {
 	//show_debug_message(s);
     if s[1] == "!"
         return [real(s[0]), undefined];
-    var sy = new Sync();
+    var sy = new CrystalSync();
     sy.kind = real(s[1]);
     sy.sync_type = real(s[2]);
     sy.event = real(s[3]);
@@ -794,7 +794,7 @@ function __decode_variable(ss) {
 
 function __decode_synciter(s) {
 	s = string_split(s, ":");
-	var si = new SyncIter();
+	var si = new CrystalSyncIter();
 	si.id = real(s[0]);
 	si.name = base64_decode(s[1]);
 	si.sync_slot = real(s[2]);
