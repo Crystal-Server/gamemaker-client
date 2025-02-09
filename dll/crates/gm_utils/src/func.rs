@@ -60,7 +60,7 @@ pub trait GmArg {
 pub unsafe fn return_with_buffer<F: FnOnce(&mut Vec<u8>)>(f: F) -> *const c_char {
     static mut RETURN_DATA: Vec<u8> = Vec::new();
 
-    RETURN_DATA.clear();
+    RETURN_DATA.resize(0, 0);
     // SAFETY: This function must be called from the same thread as Gamemaker
     //         therefore `RETURN_DATA` cannot be accessed from other threads at the same time.
     f(&mut RETURN_DATA);
