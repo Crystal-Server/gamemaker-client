@@ -215,6 +215,7 @@ pub fn __crystal_connect() {
     #[cfg(feature = "debug")]
     println!("connect()");
     let mut lock = CRYSTAL.lock();
+    // TODO: This should probably be async, not blocking (sync.)
     RUNTIME.block_on(async { lock.connect().await });
 }
 
