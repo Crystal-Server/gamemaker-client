@@ -1,12 +1,11 @@
 [package]
-name = "crystal_dll"
-version = "1.0.0"
+name = "crystal-dll"
+version = "0.1.0"
 edition = "2021"
 
 [features]
-#default = ["debug"]
-#default = []
-debug = []
+default = []
+debug = ["crystal-server/__dev"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -15,11 +14,7 @@ crate-type = ["cdylib"]
 gm_utils = { path = "./crates/gm_utils" }
 base64 = "0.22.1"
 chrono = "0.4.39"
-crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "0f79af820d6a67ea5bb19652f823d53c31264edc", features = [
-    #"__dev",
-    #"__local",
-] }
-#crystal-server = { path = "../../rust-client", features = ["__dev"] }
+crystal-server = "0.1.0"
 futures-util = "0.3.31"
 tokio = { version = "1.43.0", features = [
     "rt-multi-thread",
