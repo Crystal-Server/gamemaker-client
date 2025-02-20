@@ -152,7 +152,7 @@ global.__crystal_dll = {
     "player_unban": external_define("crystal_dll.dll", "__crystal_player_unban", dll_cdecl, ty_real, 1, ty_real),
     "logout": external_define("crystal_dll.dll", "__crystal_logout", dll_cdecl, ty_real, 0),
     "request_other_sync_variable": external_define("crystal_dll.dll", "__crystal_request_other_sync_variable", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_string, ty_real),
-    "fetch_bdb": external_define("crystal_dll.dll", "__crystal_fetch_bdb", dll_cdecl, ty_real, 2, ty_string, ty_real),
+    "fetch_bdb": external_define("crystal_dll.dll", "__crystal_fetch_bdb", dll_cdecl, ty_real, 1, ty_string),
     "set_bdb": external_define("crystal_dll.dll", "__crystal_set_bdb", dll_cdecl, ty_real, 2, ty_string, ty_string),
     "get_incoming_friends": external_define("crystal_dll.dll", "__crystal_get_incoming_friends", dll_cdecl, ty_string, 0),
     "get_outgoing_friends": external_define("crystal_dll.dll", "__crystal_get_outgoing_friends", dll_cdecl, ty_string, 0),

@@ -15,11 +15,17 @@ crate-type = ["cdylib"]
 gm_utils = { path = "./crates/gm_utils" }
 base64 = "0.22.1"
 chrono = "0.4.39"
-crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "be6a0b5e5c2f192b3507dda2fd29479638a6a1f0", features = [
+crystal-server = { git = "https://github.com/Crystal-Server/rust-client.git", rev = "0f79af820d6a67ea5bb19652f823d53c31264edc", features = [
     #"__dev",
+    #"__local",
 ] }
 #crystal-server = { path = "../../rust-client", features = ["__dev"] }
 futures-util = "0.3.31"
-parking_lot = "0.12.3"
-tokio = { features = ["rt-multi-thread", "time", "net"], version = "1.43.0" }
+tokio = { version = "1.43.0", features = [
+    "rt-multi-thread",
+    "time",
+    "net",
+    "sync",
+] }
 tracing-subscriber = "0.3.19"
+parking_lot = "0.12.3"
