@@ -1,3 +1,5 @@
+/// @feather ignore GM1041
+
 enum LoginResult {
     OK = 0,
     NoAccount = 1,
@@ -84,87 +86,6 @@ function CrystalSyncIter() constructor {
 	variables = {};
 }
 
-global.__crystal_dll = {
-    "_set_room": external_define("crystal_dll.dll", "__crystal_set_room", dll_cdecl, ty_real, 1, ty_string),
-
-    "init": external_define("crystal_dll.dll", "__crystal_init", dll_cdecl, ty_real, 1, ty_string),
-    "connect": external_define("crystal_dll.dll", "__crystal_connect", dll_cdecl, ty_real, 0),
-    "update": external_define("crystal_dll.dll", "__crystal_update", dll_cdecl, ty_real, 0),
-    "get_notification": external_define("crystal_dll.dll", "__crystal_get_notification", dll_cdecl, ty_string, 0),
-    "is_connected": external_define("crystal_dll.dll", "__crystal_is_connected", dll_cdecl, ty_real, 0),
-    "is_connecting": external_define("crystal_dll.dll", "__crystal_is_connecting", dll_cdecl, ty_real, 0),
-    "is_loggedin": external_define("crystal_dll.dll", "__crystal_is_loggedin", dll_cdecl, ty_real, 0),
-    "get_ping": external_define("crystal_dll.dll", "__crystal_get_ping", dll_cdecl, ty_real, 0),
-    "set_game_token": external_define("crystal_dll.dll", "__crystal_set_game_token", dll_cdecl, ty_real, 1, ty_string),
-    "disconnect": external_define("crystal_dll.dll", "__crystal_disconnect", dll_cdecl, ty_real, 0),
-    "login": external_define("crystal_dll.dll", "__crystal_login", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "login_with_token": external_define("crystal_dll.dll", "__crystal_login_with_token", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "register": external_define("crystal_dll.dll", "__crystal_register", dll_cdecl, ty_real, 4, ty_string, ty_string, ty_string, ty_string),
-    "get_player_id": external_define("crystal_dll.dll", "__crystal_get_player_id", dll_cdecl, ty_real, 0),
-    "get_player_name": external_define("crystal_dll.dll", "__crystal_get_player_name", dll_cdecl, ty_string, 0),
-    "set_variable": external_define("crystal_dll.dll", "__crystal_set_variable", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "remove_variable": external_define("crystal_dll.dll", "__crystal_remove_variable", dll_cdecl, ty_real, 1, ty_string),
-    "iter_other_players": external_define("crystal_dll.dll", "__crystal_iter_other_players", dll_cdecl, ty_string, 0),
-    "other_player_count": external_define("crystal_dll.dll", "__crystal_other_player_count", dll_cdecl, ty_real, 0),
-    "get_other_player": external_define("crystal_dll.dll", "__crystal_get_other_player", dll_cdecl, ty_string, 1, ty_real),
-    "get_other_player_name": external_define("crystal_dll.dll", "__crystal_get_other_player_name", dll_cdecl, ty_string, 1, ty_string),
-    "request_other_player_variable": external_define("crystal_dll.dll", "__crystal_request_other_player_variable", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real),
-    "p2p": external_define("crystal_dll.dll", "__crystal_p2p", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string),
-    "set_version": external_define("crystal_dll.dll", "__crystal_set_version", dll_cdecl, ty_real, 1, ty_real),
-    "get_version": external_define("crystal_dll.dll", "__crystal_get_version", dll_cdecl, ty_real, 0),
-	"get_server_version": external_define("crystal_dll.dll", "__crystal_get_server_version", dll_cdecl, ty_real, 0),
-	"set_session": external_define("crystal_dll.dll", "__crystal_set_session", dll_cdecl, ty_real, 1, ty_string),
-    "get_session": external_define("crystal_dll.dll", "__crystal_get_session", dll_cdecl, ty_string, 0),
-    "get_open_playerini": external_define("crystal_dll.dll", "__crystal_get_open_playerini", dll_cdecl, ty_string, 0),
-    "open_playerini": external_define("crystal_dll.dll", "__crystal_open_playerini", dll_cdecl, ty_real, 1, ty_string),
-    "close_playerini": external_define("crystal_dll.dll", "__crystal_close_playerini", dll_cdecl, ty_real, 0),
-    "has_playerini": external_define("crystal_dll.dll", "__crystal_has_playerini", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "get_playerini": external_define("crystal_dll.dll", "__crystal_get_playerini", dll_cdecl, ty_string, 2, ty_string, ty_string),
-    "set_playerini": external_define("crystal_dll.dll", "__crystal_set_playerini", dll_cdecl, ty_real, 3, ty_string, ty_string, ty_string),
-    "remove_playerini": external_define("crystal_dll.dll", "__crystal_remove_playerini", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "get_open_gameini": external_define("crystal_dll.dll", "__crystal_get_open_gameini", dll_cdecl, ty_string, 0),
-    "open_gameini": external_define("crystal_dll.dll", "__crystal_open_gameini", dll_cdecl, ty_real, 1, ty_string),
-    "close_gameini": external_define("crystal_dll.dll", "__crystal_close_gameini", dll_cdecl, ty_real, 0),
-    "has_gameini": external_define("crystal_dll.dll", "__crystal_has_gameini", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "get_gameini": external_define("crystal_dll.dll", "__crystal_get_gameini", dll_cdecl, ty_string, 2, ty_string, ty_string),
-    "set_gameini": external_define("crystal_dll.dll", "__crystal_set_gameini", dll_cdecl, ty_real, 3, ty_string, ty_string, ty_string),
-    "remove_gameini": external_define("crystal_dll.dll", "__crystal_remove_gameini", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "has_achievement": external_define("crystal_dll.dll", "__crystal_has_achievement", dll_cdecl, ty_real, 1, ty_real),
-    "get_achievement": external_define("crystal_dll.dll", "__crystal_get_achievement", dll_cdecl, ty_string, 1, ty_real),
-    "has_reached_achievement": external_define("crystal_dll.dll", "__crystal_has_reached_achievement", dll_cdecl, ty_real, 1, ty_real),
-    "get_reached_achievement": external_define("crystal_dll.dll", "__crystal_get_reached_achievement", dll_cdecl, ty_real, 1, ty_real),
-    "reach_achievement": external_define("crystal_dll.dll", "__crystal_reach_achievement", dll_cdecl, ty_real, 1, ty_real),
-    "has_highscore": external_define("crystal_dll.dll", "__crystal_has_highscore", dll_cdecl, ty_real, 1, ty_real),
-    "get_highscore": external_define("crystal_dll.dll", "__crystal_get_highscore", dll_cdecl, ty_string, 1, ty_real),
-    "has_score_highscore": external_define("crystal_dll.dll", "__crystal_has_score_highscore", dll_cdecl, ty_real, 1, ty_real),
-    "get_score_highscore": external_define("crystal_dll.dll", "__crystal_get_score_highscore", dll_cdecl, ty_real, 1, ty_real),
-    "set_score_highscore": external_define("crystal_dll.dll", "__crystal_set_score_highscore", dll_cdecl, ty_real, 2, ty_real, ty_real),
-    "create_sync": external_define("crystal_dll.dll", "__crystal_create_sync", dll_cdecl, ty_real, 2, ty_real, ty_real),
-    "destroy_sync": external_define("crystal_dll.dll", "__crystal_destroy_sync", dll_cdecl, ty_real, 1, ty_real),
-    "set_variable_sync": external_define("crystal_dll.dll", "__crystal_set_variable_sync", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_string),
-    "remove_variable_sync": external_define("crystal_dll.dll", "__crystal_remove_variable_sync", dll_cdecl, ty_real, 2, ty_real, ty_string),
-    "get_variable_other_sync": external_define("crystal_dll.dll", "__crystal_get_variable_other_sync", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string),
-    "iter_other_syncs": external_define("crystal_dll.dll", "__crystal_iter_other_syncs", dll_cdecl, ty_string, 0),
-    "is_player_admin": external_define("crystal_dll.dll", "__crystal_is_player_admin", dll_cdecl, ty_real, 1, ty_real),
-    "get_player_admin": external_define("crystal_dll.dll", "__crystal_get_player_admin", dll_cdecl, ty_string, 1, ty_real),
-    "player_kick": external_define("crystal_dll.dll", "__crystal_player_kick", dll_cdecl, ty_real, 2, ty_real, ty_string),
-    "player_ban": external_define("crystal_dll.dll", "__crystal_player_ban", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real),
-    "player_unban": external_define("crystal_dll.dll", "__crystal_player_unban", dll_cdecl, ty_real, 1, ty_real),
-    "logout": external_define("crystal_dll.dll", "__crystal_logout", dll_cdecl, ty_real, 0),
-    "request_other_sync_variable": external_define("crystal_dll.dll", "__crystal_request_other_sync_variable", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_string, ty_real),
-    "fetch_bdb": external_define("crystal_dll.dll", "__crystal_fetch_bdb", dll_cdecl, ty_real, 1, ty_string),
-    "set_bdb": external_define("crystal_dll.dll", "__crystal_set_bdb", dll_cdecl, ty_real, 2, ty_string, ty_string),
-    "get_incoming_friends": external_define("crystal_dll.dll", "__crystal_get_incoming_friends", dll_cdecl, ty_string, 0),
-    "get_outgoing_friends": external_define("crystal_dll.dll", "__crystal_get_outgoing_friends", dll_cdecl, ty_string, 0),
-    "get_friends": external_define("crystal_dll.dll", "__crystal_get_friends", dll_cdecl, ty_string, 0),
-    "send_outgoing_friend": external_define("crystal_dll.dll", "__crystal_send_outgoing_friend", dll_cdecl, ty_real, 1, ty_real),
-    "remove_outgoing_friend": external_define("crystal_dll.dll", "__crystal_remove_outgoing_friend", dll_cdecl, ty_real, 1, ty_real),
-    "deny_incoming_friend": external_define("crystal_dll.dll", "__crystal_deny_incoming_friend", dll_cdecl, ty_real, 1, ty_real),
-    "accept_incoming_friend": external_define("crystal_dll.dll", "__crystal_accept_incoming_friend", dll_cdecl, ty_real, 1, ty_real),
-    "remove_friend": external_define("crystal_dll.dll", "__crystal_remove_friend", dll_cdecl, ty_real, 1, ty_real),
-    //"": external_define("crystal_dll.dll", "", dll_cdecl, ty_real, 0),
-};
-
 global.__crystal_callback_room = undefined;
 global.__crystal_callback_p2p = undefined;
 global.__crystal_callback_register = undefined;
@@ -227,20 +148,20 @@ function crystal_set_callback_update_sync_variable(callback) {
 }
 
 function crystal_init(game_id) {
-    return external_call(global.__crystal_dll[$ "init"], game_id);
+    return __crystal_init(game_id);
 }
 
 function crystal_connect() {
-    return external_call(global.__crystal_dll[$ "connect"]);
+    return __crystal_connect();
 }
 
 function crystal_update() {
-	var r = external_call(global.__crystal_dll[$ "update"]);
+	var r = __crystal_update();
     var rm = string(room);
     if global.__crystal_callback_room != undefined
         rm = string(global.__crystal_callback_room());
-    external_call(global.__crystal_dll[$ "_set_room"], rm);
-    var notf = external_call(global.__crystal_dll[$ "get_notification"]);
+    __crystal_set_room(rm);
+    var notf = __crystal_get_notification();
     while string_length(notf) > 0 {
         var s = string_split(notf, ";");
 		//show_debug_message(notf + "\t\t\t" + string(s));
@@ -340,65 +261,65 @@ function crystal_update() {
             case "server_notification": // notif->string_base64
                 break;
         }
-        notf = external_call(global.__crystal_dll[$ "get_notification"]);
+        notf = __crystal_get_notification();
     }
     return r;
 }
 
 function crystal_is_connected() {
-    return external_call(global.__crystal_dll[$ "is_connected"]);
+    return __crystal_is_connected();
 }
 
 function crystal_is_connecting() {
-    return external_call(global.__crystal_dll[$ "is_connecting"]);
+    return __crystal_is_connecting();
 }
 
 function crystal_is_loggedin() {
-    return external_call(global.__crystal_dll[$ "is_loggedin"]);
+    return __crystal_is_loggedin();
 }
 
 function crystal_get_ping() {
-    return external_call(global.__crystal_dll[$ "get_ping"]);
+    return __crystal_get_ping();
 }
 
 function crystal_set_game_token(token) {
-    return external_call(global.__crystal_dll[$ "set_game_token"], token);
+    return __crystal_set_game_token(token);
 }
 
 function crystal_disconnect() {
-    return external_call(global.__crystal_dll[$ "disconnect"]);
+    return __crystal_disconnect();
 }
 
 function crystal_login(name, passw) {
-    return external_call(global.__crystal_dll[$ "login"], name, passw);
+    return __crystal_login(name, passw);
 }
 
 function crystal_login_with_token(name, token) {
-    return external_call(global.__crystal_dll[$ "login_with_token"], name, token);
+    return __crystal_login_with_token(name, token);
 }
 
 function crystal_register(name, email, passw, repeat_passw) {
-    return external_call(global.__crystal_dll[$ "register"]);
+    return __crystal_register();
 }
 
 function crystal_get_player_id() {
-    return external_call(global.__crystal_dll[$ "get_player_id"]);
+    return __crystal_get_player_id();
 }
 
 function crystal_get_player_name() {
-    return external_call(global.__crystal_dll[$ "get_player_name"]);
+    return __crystal_get_player_name();
 }
 
 function crystal_set_variable(name, variable) {
-    return external_call(global.__crystal_dll[$ "set_variable"], name, __encode_variable(variable));
+    return __crystal_set_variable(name, __encode_variable(variable));
 }
 
 function crystal_remove_variable(name) {
-    return external_call(global.__crystal_dll[$ "remove_variable"], name);
+    return __crystal_remove_variable(name);
 }
 
 function crystal_iter_other_players() {
-	var ss = external_call(global.__crystal_dll[$ "iter_other_players"]);
+	var ss = __crystal_iter_other_players();
 	//show_debug_message(ss);
     var s = string_split(ss, ";");
 	//show_debug_message(r + "\t\t\t" + string(s));
@@ -411,166 +332,166 @@ function crystal_iter_other_players() {
 }
 
 function crystal_other_player_count() {
-    return external_call(global.__crystal_dll[$ "other_player_count"]);
+    return __crystal_other_player_count();
 }
 
 function crystal_get_other_player(pid) {
-    return __decode_player(external_call(global.__crystal_dll[$ "get_other_player"], pid));
+    return __decode_player(__crystal_get_other_player(pid));
 }
 
 function crystal_get_other_player_name(name) {
-    return __decode_player(external_call(global.__crystal_dll[$ "get_other_player_name"], name));
+    return __decode_player(__crystal_get_other_player_name(name));
 }
 
 function crystal_request_other_player_variable(pid, name, request) {
-    return external_call(global.__crystal_dll[$ "request_other_player_variable"], pid, name, request);
+    return __crystal_request_other_player_variable(pid, name, request);
 }
 
 function crystal_p2p(target, mid, payload) {
     var s = string(array_length(payload));
     for (var i = 0; i < array_length(payload); i++)
         s += ";" + __encode_variable(payload[i]);
-    return external_call(global.__crystal_dll[$ "p2p"], target, mid, s);
+    return __crystal_p2p(target, mid, s);
 }
 
 function crystal_set_version(version) {
-    return external_call(global.__crystal_dll[$ "set_version"], version);
+    return __crystal_set_version(version);
 }
 
 function crystal_get_version() {
-    return external_call(global.__crystal_dll[$ "get_version"]);
+    return __crystal_get_version();
 }
 
 function crystal_get_server_version() {
-    return external_call(global.__crystal_dll[$ "get_server_version"]);
+    return __crystal_get_server_version();
 }
 
 function crystal_set_session(session) {
-    return external_call(global.__crystal_dll[$ "set_session"], session);
+    return __crystal_set_session(session);
 }
 
 function crystal_get_session() {
-    return external_call(global.__crystal_dll[$ "get_session"]);
+    return __crystal_get_session();
 }
 
 function crystal_get_open_playerini() {
-    return external_call(global.__crystal_dll[$ "get_open_playerini"]);
+    return __crystal_get_open_playerini();
 }
 
 function crystal_open_playerini(file) {
-    return external_call(global.__crystal_dll[$ "open_playerini"], file);
+    return __crystal_open_playerini(file);
 }
 
 function crystal_close_playerini() {
-    return external_call(global.__crystal_dll[$ "close_playerini"]);
+    return __crystal_close_playerini();
 }
 
 function crystal_has_playerini(section, key) {
-    return external_call(global.__crystal_dll[$ "has_playerini"], section, key);
+    return __crystal_has_playerini(section, key);
 }
 
 function crystal_get_playerini(section, key) {
-    return __decode_variable(external_call(global.__crystal_dll[$ "get_playerini"], section, key));
+    return __decode_variable(__crystal_get_playerini(section, key));
 }
 
 function crystal_set_playerini(section, key, value) {
-    return external_call(global.__crystal_dll[$ "set_playerini"], section, key, __encode_variable(value));
+    return __crystal_set_playerini(section, key, __encode_variable(value));
 }
 
 function crystal_remove_playerini(section, key) {
-    return external_call(global.__crystal_dll[$ "remove_playerini"], section, key);
+    return __crystal_remove_playerini(section, key);
 }
 
 function crystal_get_open_gameini() {
-    return external_call(global.__crystal_dll[$ "get_open_gameini"]);
+    return __crystal_get_open_gameini();
 }
 
 function crystal_open_gameini(file) {
-    return external_call(global.__crystal_dll[$ "open_gameini"], file);
+    return __crystal_open_gameini(file);
 }
 
 function crystal_close_gameini() {
-    return external_call(global.__crystal_dll[$ "close_gameini"]);
+    return __crystal_close_gameini();
 }
 
 function crystal_has_gameini(section, key) {
-    return external_call(global.__crystal_dll[$ "has_gameini"], section, key);
+    return __crystal_has_gameini(section, key);
 }
 
 function crystal_get_gameini(section, key) {
-    return __decode_variable(external_call(global.__crystal_dll[$ "get_gameini"], section, key));
+    return __decode_variable(__crystal_get_gameini(section, key));
 }
 
 function crystal_set_gameini(section, key, value) {
-    return external_call(global.__crystal_dll[$ "set_gameini"], section, key, __encode_variable(value));
+    return __crystal_set_gameini(section, key, __encode_variable(value));
 }
 
 function crystal_remove_gameini(section, key) {
-    return external_call(global.__crystal_dll[$ "remove_gameini"], section, key);
+    return __crystal_remove_gameini(section, key);
 }
 
 function crystal_has_achievement(aid) {
-    return external_call(global.__crystal_dll[$ "has_achievement"], aid);
+    return __crystal_has_achievement(aid);
 }
 
 function crystal_get_achievement(aid) {
-    return external_call(global.__crystal_dll[$ "get_achievement"], aid);
+    return __crystal_get_achievement(aid);
 }
 
 function crystal_has_reached_achievement(aid) {
-    return external_call(global.__crystal_dll[$ "has_reached_achievement"], aid);
+    return __crystal_has_reached_achievement(aid);
 }
 
 function crystal_get_reached_achievement(aid) {
-    return external_call(global.__crystal_dll[$ "get_reached_achievement"], aid);
+    return __crystal_get_reached_achievement(aid);
 }
 
 function crystal_reach_achievement(aid) {
-    return external_call(global.__crystal_dll[$ "reach_achievement"], aid);
+    return __crystal_reach_achievement(aid);
 }
 
 function crystal_has_highscore(hid) {
-    return external_call(global.__crystal_dll[$ "has_highscore"], hid);
+    return __crystal_has_highscore(hid);
 }
 
 function crystal_get_highscore(hid) {
-    return external_call(global.__crystal_dll[$ "get_highscore"], hid);
+    return __crystal_get_highscore(hid);
 }
 
 function crystal_has_score_highscore(hid) {
-    return external_call(global.__crystal_dll[$ "has_score_highscore"], hid);
+    return __crystal_has_score_highscore(hid);
 }
 
 function crystal_get_score_highscore(hid) {
-    return external_call(global.__crystal_dll[$ "get_score_highscore"], hid);
+    return __crystal_get_score_highscore(hid);
 }
 
 function crystal_set_score_highscore(hid, score) {
-    return external_call(global.__crystal_dll[$ "set_score_highscore"], hid, score);
+    return __crystal_set_score_highscore(hid, score);
 }
 
 function crystal_create_sync(sync_type, kind) {
-    return external_call(global.__crystal_dll[$ "create_sync"], sync_type, kind);
+    return __crystal_create_sync(sync_type, kind);
 }
 
 function crystal_destroy_sync(sync) {
-    return external_call(global.__crystal_dll[$ "destroy_sync"], sync);
+    return __crystal_destroy_sync(sync);
 }
 
 function crystal_set_variable_sync(sync, name, value) {
-    return external_call(global.__crystal_dll[$ "set_variable_sync"], sync, name, __encode_variable(value));
+    return __crystal_set_variable_sync(sync, name, __encode_variable(value));
 }
 
 function crystal_remove_variable_sync(sync, name) {
-    return external_call(global.__crystal_dll[$ "remove_variable_sync"], sync, name);
+    return __crystal_remove_variable_sync(sync, name);
 }
 
 function crystal_get_variable_other_sync(pid, sync, name) {
-    return external_call(global.__crystal_dll[$ "get_variable_other_sync"], pid, sync, name);
+    return __crystal_get_variable_other_sync(pid, sync, name);
 }
 
 function crystal_iter_other_syncs() {
-    var ss = external_call(global.__crystal_dll[$ "iter_other_syncs"]);
+    var ss = __crystal_iter_other_syncs();
 	//show_debug_message(ss);
     var s = string_split(ss, ";");
 	//show_debug_message(ss + "\t\t\t" + string(s));
@@ -583,43 +504,43 @@ function crystal_iter_other_syncs() {
 }
 
 function crystal_is_player_admin(pid) {
-    return external_call(global.__crystal_dll[$ "is_player_admin"], pid);
+    return __crystal_is_player_admin(pid);
 }
 
 function crystal_get_player_admin(pid) {
-    return __decode_administrator(external_call(global.__crystal_dll[$ "get_player_admin"], pid));
+    return __decode_administrator(__crystal_get_player_admin(pid));
 }
 
 function crystal_player_kick(pid, reason) {
-    return external_call(global.__crystal_dll[$ "player_kick"], pid, reason);
+    return __crystal_player_kick(pid, reason);
 }
 
 function crystal_player_ban(pid, reason, unban_time) {
-    return external_call(global.__crystal_dll[$ "player_ban"], pid, reason, unban_time);
+    return __crystal_player_ban(pid, reason, unban_time);
 }
 
 function crystal_player_unban(pid) {
-    return external_call(global.__crystal_dll[$ "player_unban"], pid);
+    return __crystal_player_unban(pid);
 }
 
 function crystal_logout() {
-    return external_call(global.__crystal_dll[$ "logout"]);
+    return __crystal_logout();
 }
 
 function crystal_request_other_sync_variable(pid, slot, name, request) {
-    return external_call(global.__crystal_dll[$ "request_other_sync_variable"], pid, slot, name, request);
+    return __crystal_request_other_sync_variable(pid, slot, name, request);
 }
 
-function crystal_fetch_bdb(name, request) {
-    return external_call(global.__crystal_dll[$ "fetch_bdb"], name, request);
+function crystal_fetch_bdb(name) {
+    return __crystal_fetch_bdb(name);
 }
 
 function crystal_set_bdb(name, data) {
-    return external_call(global.__crystal_dll[$ "set_bdb"], name, buffer_base64_encode(data, 0, buffer_tell(data)));
+    return __crystal_set_bdb(name, buffer_base64_encode(data, 0, buffer_tell(data)));
 }
 
 function crystal_get_incoming_friends() {
-    var s = string_split(external_call(global.__crystal_dll[$ "get_incoming_friends"]), ":");
+    var s = string_split(__crystal_get_incoming_friends(), ":");
     var r = [];
     var sz = real(s[0]);
     for (var i = 0; i < sz; i++)
@@ -628,7 +549,7 @@ function crystal_get_incoming_friends() {
 }
 
 function crystal_get_outgoing_friends() {
-    var s = string_split(external_call(global.__crystal_dll[$ "get_outgoing_friends"]), ":");
+    var s = string_split(__crystal_get_outgoing_friends(), ":");
     var r = [];
     var sz = real(s[0]);
     for (var i = 0; i < sz; i++)
@@ -637,7 +558,7 @@ function crystal_get_outgoing_friends() {
 }
 
 function crystal_get_friends() {
-    var s = string_split(external_call(global.__crystal_dll[$ "get_friends"]), ":");
+    var s = string_split(__crystal_get_friends(), ":");
     var r = [];
     var sz = real(s[0]);
     for (var i = 0; i < sz; i++)
@@ -646,28 +567,28 @@ function crystal_get_friends() {
 }
 
 function crystal_send_outgoing_friend(pid) {
-    return external_call(global.__crystal_dll[$ "send_outgoing_friend"], pid);
+    return __crystal_send_outgoing_friend(pid);
 }
 
 function crystal_remove_outgoing_friend(pid) {
-    return external_call(global.__crystal_dll[$ "remove_outgoing_friend"], pid);
+    return __crystal_remove_outgoing_friend(pid);
 }
 
 function crystal_deny_incoming_friend(pid) {
-    return external_call(global.__crystal_dll[$ "deny_incoming_friend"], pid);
+    return __crystal_deny_incoming_friend(pid);
 }
 
 function crystal_accept_incoming_friend(pid) {
-    return external_call(global.__crystal_dll[$ "accept_incoming_friend"], pid);
+    return __crystal_accept_incoming_friend(pid);
 }
 
 function crystal_remove_friend(pid) {
-    return external_call(global.__crystal_dll[$ "remove_friend"], pid);
+    return __crystal_remove_friend(pid);
 }
 
 /*
 function crystal_() {
-    return external_call(global.__crystal_dll[$ ""]);
+    return __crystal_();
 }
 */
 
