@@ -3,7 +3,7 @@ use std::{
     sync::LazyLock,
 };
 
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::DateTime;
 use crystal_server::{
     client::CrystalServer,
@@ -12,7 +12,7 @@ use crystal_server::{
         Player, PlayerRequest, SyncIter, SyncType, Value,
     },
 };
-use futures_util::{pin_mut, StreamExt};
+use futures_util::{StreamExt, pin_mut};
 use gm_utils::gm_func;
 use tokio::{runtime::Runtime, sync::Mutex};
 
@@ -374,7 +374,8 @@ pub fn __crystal_iter_other_players() -> String {
     #[cfg(feature = "debug")]
     println!("iter_other_players()");
     RUNTIME.block_on(async {
-        let iter = CRYSTAL.lock().await.iter_other_players().await;
+        let lock = CRYSTAL.lock().await;
+        let iter = lock.iter_other_players().await;
         pin_mut!(iter);
         let mut res = String::new();
         while let Some((pid, player)) = iter.next().await {
@@ -824,7 +825,8 @@ pub fn __crystal_iter_other_syncs() -> String {
     #[cfg(feature = "debug")]
     println!("iter_other_syncs()");
     RUNTIME.block_on(async {
-        let iter = CRYSTAL.lock().await.iter_other_syncs().await;
+        let lock = CRYSTAL.lock().await;
+        let iter = lock.iter_other_syncs().await;
         pin_mut!(iter);
         let mut res = String::new();
         while let Some(sync) = iter.next().await {
